@@ -13,9 +13,14 @@ ai-log-anomaly-detector/
 ├── results/
 │   ├── nsl_kdd_results.json    # all metrics from the benchmark run
 │   └── nsl_kdd_roc.png         # ROC curves
+├── web/
+│   └── index.html              # single-page front end served by the API
 ├── src/
 │   ├── engine.py               # preprocessing, training, detection
 │   ├── app.py                  # command line interface
+│   ├── api.py                  # FastAPI service (serves web/index.html)
+│   ├── dashboard.py            # Streamlit dashboard
+│   ├── pipeline.py             # validation and summaries shared by api + dashboard
 │   ├── generate_data.py        # synthetic data generator (normal + attacks)
 │   ├── download_nsl_kdd.py     # fetches the NSL-KDD benchmark files
 │   └── evaluate.py             # benchmark evaluation and ROC figure
@@ -58,6 +63,35 @@ Run the tests:
 ```
 python -m pytest
 ```
+
+## Web app
+
+A FastAPI service with a small browser front end: upload logs, train, analyze, and see flagged sessions plus the NSL-KDD benchmark.
+
+```
+uvicorn api:app --app-dir src --reload
+```
+
+Open http://127.0.0.1:8000 (interactive API docs at `/docs`). Click **Run demo** to try it with no files.
+
+| Endpoint | What it does |
+|---|---|
+| `POST /api/train` | Train on an uploaded CSV (`file`, optional `contamination`) |
+| `POST /api/analyze` | Score an uploaded CSV with the current model |
+| `POST /api/demo` | Generate synthetic traffic with attacks, train, and analyze |
+| `GET /api/sample.csv` | Download a synthetic CSV to try uploading |
+| `GET /api/benchmark` | NSL-KDD benchmark table |
+| `GET /api/health` | Server and model status |
+
+Uploads are limited to 10 MB and 100,000 rows. The server keeps one shared model (also saved to `models/anomaly_model.pkl`), so it is a demo service, not a multi-user one, and it has no authentication.
+
+## Dashboard
+
+```
+streamlit run src/dashboard.py
+```
+
+Choose the synthetic demo or upload your own CSVs in the sidebar, then press **Train & analyze**. The Detection tab shows metrics, the risk score distribution with the flagging threshold, and a downloadable table of flagged sessions. The Benchmark tab compares Isolation Forest and the One-Class SVM on NSL-KDD.
 
 ## How it works
 
@@ -130,4 +164,4 @@ Dataset: Tavallaee, Bagheri, Lu, Ghorbani, "A Detailed Analysis of the KDD CUP 9
 - Repeat the evaluation over several random seeds and report the spread.
 - Test whether the service effect is real: evaluate with and without the rare-service rows, or hold out entire services.
 - Add a supervised baseline (for example a random forest) as a reference ceiling, and try an autoencoder detector.
-- Build a simple dashboard around the saved model and risk scores.
+- Add authentication and per-user models before exposing the web app publicly.

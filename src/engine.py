@@ -55,15 +55,34 @@ class LogAnomalyEngine:
         self.fit(pd.read_csv(data_path))
         self.save(model_output_path)
 
-    def detect_anomalies(self, df, model_path):
+    @classmethod
+    def load(cls, model_path):
+        """Load a saved model (as written by save/train) into a ready engine."""
         model, scaler, features = joblib.load(model_path)
-        X_scaled = scaler.transform(select_features(df, features))
-        predictions = model.predict(X_scaled)
-        scores = model.score_samples(X_scaled)
+        engine = cls(contamination=model.contamination, features=features)
+        engine.model, engine.scaler = model, scaler
+        return engine
+
+    @property
+    def risk_threshold(self):
+        """Risk score at which the model starts flagging rows (0-100)."""
+        return float(np.clip(_to_risk(self.model.offset_), 0, 100))
+
+    def score(self, df):
+        """Score an in-memory DataFrame with an already fitted engine."""
+        X_scaled = self.scaler.transform(select_features(df, self.features))
+        predictions = self.model.predict(X_scaled)
+        scores = self.model.score_samples(X_scaled)
 
         df = df.copy()
         df["anomaly_status"] = np.where(predictions == -1, "CRITICAL ANOMALY", "NORMAL")
-        # score_samples is roughly in [-1, 0]; more negative = more anomalous.
-        risk = 100 * (1 - (scores + 1) / 2)
-        df["risk_score"] = np.round(np.clip(risk, 0, 100), 2)
+        df["risk_score"] = np.round(np.clip(_to_risk(scores), 0, 100), 2)
         return df
+
+    def detect_anomalies(self, df, model_path):
+        return LogAnomalyEngine.load(model_path).score(df)
+
+
+def _to_risk(scores):
+    """score_samples is roughly in [-1, 0]; more negative = more anomalous."""
+    return 100 * (1 - (scores + 1) / 2)

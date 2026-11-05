@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Log Anomaly Detector</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #14181f; --muted: #5d6675;
+    --line: #e2e5ea; --accent: #2563eb; --accent-ink: #ffffff;
+    --bar: #9db8ee; --bar-hot: #e0553a; --ok: #1f8f5f; --warn: #b42318;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1218; --panel: #171b23; --ink: #e8ebf0; --muted: #9aa4b2;
+      --line: #272d38; --accent: #5b8def; --accent-ink: #0b1020;
+      --bar: #3a5694; --bar-hot: #ef6a50; --ok: #4cc38a; --warn: #f97066;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 24px 16px 64px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; justify-content: space-between; }
+  h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+  h2 { font-size: 13px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .sub { color: var(--muted); margin: 4px 0 24px; max-width: 62ch; }
+  .pill { font-size: 13px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line);
+          background: var(--panel); color: var(--muted); }
+  .pill.on { color: var(--ok); border-color: var(--ok); }
+  .grid { display: grid; gap: 16px; grid-template-columns: 1fr 1fr; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; }
+  .card p { margin: 0 0 12px; color: var(--muted); font-size: 14px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+  input[type=file], input[type=number] { width: 100%; font: inherit; color: var(--ink);
+    padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  button { font: inherit; cursor: pointer; padding: 8px 14px; border-radius: 8px;
+           border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+  button:disabled { opacity: .5; cursor: progress; }
+  button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  a { color: var(--accent); }
+  #status { min-height: 24px; margin: 16px 0 0; font-size: 14px; }
+  #status.err { color: var(--warn); } #status.ok { color: var(--ok); }
+  section { margin-top: 24px; }
+  .stats { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .stat b { display: block; font-size: 24px; letter-spacing: -0.02em; }
+  .stat span { font-size: 12px; color: var(--muted); }
+  .hist { display: flex; align-items: flex-end; gap: 3px; height: 140px; position: relative; padding-top: 6px; }
+  .hist div.bar { flex: 1; background: var(--bar); border-radius: 3px 3px 0 0; min-height: 1px; }
+  .hist div.bar.hot { background: var(--bar-hot); }
+  .axis { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .note { font-size: 13px; color: var(--muted); margin-top: 8px; }
+  .tablewrap { overflow-x: auto; }
+  .tablewrap.scroll { max-height: 420px; overflow-y: auto; }
+  .tablewrap.scroll th { position: sticky; top: 0; background: var(--panel); }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  td.num { font-family: var(--mono); font-size: 13px; }
+  .risk { font-weight: 700; color: var(--bar-hot); }
+  img.roc { width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--line); background: #fff; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Log Anomaly Detector</h1>
+    <span id="model-pill" class="pill">No model trained</span>
+  </header>
+  <p class="sub">Teach an Isolation Forest what normal network activity looks like, then flag sessions that don't fit: long durations, packet floods, repeated failed logins.</p>
+
+  <div class="grid">
+    <div class="card">
+      <h2>1 · Train</h2>
+      <p>Upload a CSV of mostly normal logs. Columns used: <code>duration</code>, <code>packet_count</code>, <code>byte_size</code>, <code>failed_logins</code>.</p>
+      <label for="train-file">Training CSV</label>
+      <input id="train-file" type="file" accept=".csv,text/csv">
+      <label for="contamination">Expected share of anomalies (0–0.5)</label>
+      <input id="contamination" type="number" min="0.001" max="0.5" step="0.01" value="0.05">
+      <div class="row"><button id="train-btn" class="primary">Train model</button></div>
+    </div>
+
+    <div class="card">
+      <h2>2 · Analyze</h2>
+      <p>Score a CSV with the trained model. No files handy? Run the demo, or download a sample to try.</p>
+      <label for="analyze-file">Logs to analyze</label>
+      <input id="analyze-file" type="file" accept=".csv,text/csv">
+      <div class="row">
+        <button id="analyze-btn" class="primary">Analyze</button>
+        <button id="demo-btn">Run demo</button>
+        <a href="/api/sample.csv" download style="align-self:center">Download sample CSV</a>
+      </div>
+    </div>
+  </div>
+
+  <p id="status" role="status" aria-live="polite"></p>
+
+  <section id="results" hidden>
+    <h2>Results</h2>
+    <div class="stats" id="stats"></div>
+
+    <div class="card" style="margin-top:16px">
+      <h2>Risk score distribution</h2>
+      <div class="hist" id="hist" role="img" aria-label="Histogram of risk scores"></div>
+      <div class="axis"><span>0</span><span>risk score</span><span>100</span></div>
+      <p class="note" id="hist-note"></p>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h2 id="flagged-title">Flagged sessions</h2>
+      <div class="tablewrap scroll"><table id="flagged"></table></div>
+      <p class="note" id="flagged-note"></p>
+    </div>
+  </section>
+
+  <section id="bench" hidden>
+    <h2>Benchmark · NSL-KDD test set</h2>
+    <div class="card">
+      <p>Both detectors train on normal traffic only. Richer features help a lot; the two detectors trade places depending on the feature set.</p>
+      <div class="tablewrap"><table id="bench-table"></table></div>
+      <p class="note" id="bench-note"></p>
+      <img class="roc" id="roc" alt="ROC curves for Isolation Forest and One-Class SVM on four feature sets" hidden>
+    </div>
+  </section>
+</div>
+
+<script>
+const $ = (sel) => document.querySelector(sel);
+const fmt = (n, d = 2) => Number(n).toLocaleString(undefined, { maximumFractionDigits: d });
+const pct = (n) => (Number(n) * 100).toFixed(1) + "%";
+
+function setStatus(msg, kind = "") {
+  const el = $("#status");
+  el.textContent = msg;
+  el.className = kind;
+}
+
+async function api(path, options) {
+  const res = await fetch(path, options);
+  let body = null;
+  try { body = await res.json(); } catch (_) { /* non-JSON error */ }
+  if (!res.ok) {
+    let detail = body && body.detail;
+    if (Array.isArray(detail)) detail = detail.map((d) => d.msg).join("; ");
+    throw new Error(detail || res.statusText || "Request failed");
+  }
+  return body;
+}
+
+async function run(buttons, label, fn) {
+  buttons.forEach((b) => (b.disabled = true));
+  setStatus(label + "…");
+  try { await fn(); }
+  catch (e) { setStatus(e.message, "err"); }
+  finally { buttons.forEach((b) => (b.disabled = false)); }
+}
+
+function setModel(model) {
+  const pill = $("#model-pill");
+  if (model) {
+    pill.textContent = `Model ready · ${model.trained_rows ? fmt(model.trained_rows, 0) + " rows" : "loaded"}`;
+    pill.classList.add("on");
+  } else {
+    pill.textContent = "No model trained";
+    pill.classList.remove("on");
+  }
+}
+
+function stat(value, label) {
+  const d = document.createElement("div");
+  d.className = "stat";
+  const b = document.createElement("b"); b.textContent = value;
+  const s = document.createElement("span"); s.textContent = label;
+  d.append(b, s);
+  return d;
+}
+
+function renderResults(r) {
+  $("#results").hidden = false;
+
+  const stats = $("#stats");
+  stats.replaceChildren(
+    stat(fmt(r.rows, 0), "rows analyzed"),
+    stat(fmt(r.flagged, 0), "flagged as anomalies"),
+    stat(pct(r.flag_rate), "flag rate"),
+  );
+  if (r.label_metrics) {
+    const m = r.label_metrics;
+    stats.append(
+      stat(`${m.caught} / ${m.attacks}`, "labeled attacks caught"),
+      stat(pct(m.precision), "precision"),
+      stat(fmt(m.false_alarms, 0), "false alarms"),
+    );
+  }
+
+  // Histogram: 20 bins of width 5; bins at or above the threshold are highlighted.
+  const hist = $("#hist");
+  const max = Math.max(...r.histogram, 1);
+  hist.replaceChildren(...r.histogram.map((count, i) => {
+    const bar = document.createElement("div");
+    bar.className = "bar" + ((i + 1) * 5 > r.risk_threshold ? " hot" : "");
+    bar.style.height = Math.max((count / max) * 100, count ? 2 : 0) + "%";
+    bar.title = `risk ${i * 5}–${(i + 1) * 5}: ${count} rows`;
+    return bar;
+  }));
+  $("#hist-note").textContent =
+    `Sessions scoring above about ${r.risk_threshold} are flagged (red). Higher means more unusual.`;
+
+  // Flagged table
+  const table = $("#flagged");
+  table.replaceChildren();
+  $("#flagged-title").textContent = `Flagged sessions (${fmt(r.flagged, 0)})`;
+  if (!r.flagged_rows.length) {
+    $("#flagged-note").textContent = "Nothing flagged. Baseline looks clean.";
+  } else {
+    const cols = ["row", ...r.features.filter((f) => f in r.flagged_rows[0]), "risk_score"];
+    const thead = table.createTHead().insertRow();
+    cols.forEach((c) => { const th = document.createElement("th"); th.textContent = c.replace("_", " "); thead.append(th); });
+    const tbody = table.createTBody();
+    r.flagged_rows.forEach((row) => {
+      const tr = tbody.insertRow();
+      cols.forEach((c) => {
+        const td = tr.insertCell();
+        td.className = "num" + (c === "risk_score" ? " risk" : "");
+        td.textContent = fmt(row[c], c === "row" ? 0 : 2);
+      });
+    });
+    $("#flagged-note").textContent = r.flagged_truncated
+      ? "Showing the 200 highest-risk sessions."
+      : "Sorted by risk score, highest first.";
+  }
+  $("#results").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+$("#train-btn").addEventListener("click", () => {
+  const file = $("#train-file").files[0];
+  if (!file) return setStatus("Choose a training CSV first.", "err");
+  const form = new FormData();
+  form.append("file", file);
+  form.append("contamination", $("#contamination").value || "0.05");
+  run([$("#train-btn"), $("#analyze-btn"), $("#demo-btn")], "Training", async () => {
+    const m = await api("/api/train", { method: "POST", body: form });
+    setModel(m);
+    setStatus(`Trained on ${fmt(m.trained_rows, 0)} rows. Now analyze some logs.`, "ok");
+  });
+});
+
+$("#analyze-btn").addEventListener("click", () => {
+  const file = $("#analyze-file").files[0];
+  if (!file) return setStatus("Choose a CSV to analyze first.", "err");
+  const form = new FormData();
+  form.append("file", file);
+  run([$("#train-btn"), $("#analyze-btn"), $("#demo-btn")], "Analyzing", async () => {
+    renderResults(await api("/api/analyze", { method: "POST", body: form }));
+    setStatus("Done.", "ok");
+  });
+});
+
+$("#demo-btn").addEventListener("click", () => {
+  run([$("#train-btn"), $("#analyze-btn"), $("#demo-btn")], "Running demo", async () => {
+    const r = await api("/api/demo", { method: "POST" });
+    setModel({ trained_rows: r.rows });
+    renderResults(r);
+    setStatus("Demo: trained and scored 1,000 synthetic sessions with 5% injected attacks.", "ok");
+  });
+});
+
+async function loadBenchmark() {
+  try {
+    const b = await api("/api/benchmark");
+    const table = $("#bench-table");
+    const cols = ["Feature set", "Detector", "Features", "Precision", "Recall", "F1", "ROC AUC"];
+    const thead = table.createTHead().insertRow();
+    cols.forEach((c) => { const th = document.createElement("th"); th.textContent = c; thead.append(th); });
+    const tbody = table.createTBody();
+    b.table.forEach((row) => {
+      const tr = tbody.insertRow();
+      cols.forEach((c) => {
+        const td = tr.insertCell();
+        const v = row[c];
+        td.textContent = typeof v === "number" && !Number.isInteger(v) ? v.toFixed(3) : v;
+        if (typeof v === "number") td.className = "num";
+      });
+    });
+    $("#bench-note").textContent = `Isolation Forest contamination ${b.contamination}. Precision, recall and F1 are for the attack class.`;
+    if (b.roc_available) { const img = $("#roc"); img.src = "/api/benchmark/roc.png"; img.hidden = false; }
+    $("#bench").hidden = false;
+  } catch (_) { /* benchmark is optional */ }
+}
+
+(async function init() {
+  try { const h = await api("/api/health"); setModel(h.model); } catch (_) {}
+  loadBenchmark();
+})();
+</script>
+</body>
+</html>
