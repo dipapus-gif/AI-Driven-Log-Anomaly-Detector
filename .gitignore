@@ -1,0 +1,5 @@
+data/nsl-kdd/
+data/synthetic_logs.csv
+models/*.pkl
+__pycache__/
+.pytest_cache/

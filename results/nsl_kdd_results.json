@@ -1,0 +1,370 @@
+{
+  "contamination": 0.05,
+  "ocsvm_train_rows": 10000,
+  "results": {
+    "isolation_forest": {
+      "mapped4": {
+        "precision": 0.8854,
+        "recall": 0.3178,
+        "f1": 0.4677,
+        "roc_auc": 0.7268,
+        "tn": 9183,
+        "fp": 528,
+        "fn": 8755,
+        "tp": 4078,
+        "n_features": 4,
+        "per_attack_recall": {
+          "neptune": {
+            "count": 4657,
+            "recall": 0.3807
+          },
+          "guess_passwd": {
+            "count": 1231,
+            "recall": 0.0
+          },
+          "mscan": {
+            "count": 996,
+            "recall": 0.0
+          },
+          "warezmaster": {
+            "count": 944,
+            "recall": 0.2362
+          },
+          "apache2": {
+            "count": 737,
+            "recall": 0.6567
+          },
+          "satan": {
+            "count": 735,
+            "recall": 0.6259
+          },
+          "processtable": {
+            "count": 685,
+            "recall": 0.6847
+          },
+          "smurf": {
+            "count": 665,
+            "recall": 0.7008
+          }
+        }
+      },
+      "numeric38": {
+        "precision": 0.9716,
+        "recall": 0.6497,
+        "f1": 0.7787,
+        "roc_auc": 0.924,
+        "tn": 9467,
+        "fp": 244,
+        "fn": 4495,
+        "tp": 8338,
+        "n_features": 38,
+        "per_attack_recall": {
+          "neptune": {
+            "count": 4657,
+            "recall": 1.0
+          },
+          "guess_passwd": {
+            "count": 1231,
+            "recall": 0.0114
+          },
+          "mscan": {
+            "count": 996,
+            "recall": 0.9839
+          },
+          "warezmaster": {
+            "count": 944,
+            "recall": 0.1494
+          },
+          "apache2": {
+            "count": 737,
+            "recall": 0.9104
+          },
+          "satan": {
+            "count": 735,
+            "recall": 0.9959
+          },
+          "processtable": {
+            "count": 685,
+            "recall": 0.673
+          },
+          "smurf": {
+            "count": 665,
+            "recall": 0.0662
+          }
+        }
+      },
+      "numeric38_protocol": {
+        "precision": 0.9706,
+        "recall": 0.6677,
+        "f1": 0.7912,
+        "roc_auc": 0.9289,
+        "tn": 9451,
+        "fp": 260,
+        "fn": 4264,
+        "tp": 8569,
+        "n_features": 41,
+        "per_attack_recall": {
+          "neptune": {
+            "count": 4657,
+            "recall": 1.0
+          },
+          "guess_passwd": {
+            "count": 1231,
+            "recall": 0.0032
+          },
+          "mscan": {
+            "count": 996,
+            "recall": 0.9458
+          },
+          "warezmaster": {
+            "count": 944,
+            "recall": 0.1123
+          },
+          "apache2": {
+            "count": 737,
+            "recall": 0.8765
+          },
+          "satan": {
+            "count": 735,
+            "recall": 0.9959
+          },
+          "processtable": {
+            "count": 685,
+            "recall": 0.4584
+          },
+          "smurf": {
+            "count": 665,
+            "recall": 0.615
+          }
+        }
+      },
+      "numeric38_all_cat": {
+        "precision": 0.9308,
+        "recall": 0.6504,
+        "f1": 0.7657,
+        "roc_auc": 0.9379,
+        "tn": 9091,
+        "fp": 620,
+        "fn": 4487,
+        "tp": 8346,
+        "n_features": 122,
+        "per_attack_recall": {
+          "neptune": {
+            "count": 4657,
+            "recall": 1.0
+          },
+          "guess_passwd": {
+            "count": 1231,
+            "recall": 0.0244
+          },
+          "mscan": {
+            "count": 996,
+            "recall": 0.9608
+          },
+          "warezmaster": {
+            "count": 944,
+            "recall": 0.0583
+          },
+          "apache2": {
+            "count": 737,
+            "recall": 0.9335
+          },
+          "satan": {
+            "count": 735,
+            "recall": 0.985
+          },
+          "processtable": {
+            "count": 685,
+            "recall": 0.381
+          },
+          "smurf": {
+            "count": 665,
+            "recall": 0.3594
+          }
+        }
+      }
+    },
+    "ocsvm": {
+      "mapped4": {
+        "precision": 0.8469,
+        "recall": 0.2668,
+        "f1": 0.4058,
+        "roc_auc": 0.697,
+        "tn": 9092,
+        "fp": 619,
+        "fn": 9409,
+        "tp": 3424,
+        "n_features": 4,
+        "per_attack_recall": {
+          "neptune": {
+            "count": 4657,
+            "recall": 0.192
+          },
+          "guess_passwd": {
+            "count": 1231,
+            "recall": 0.3794
+          },
+          "mscan": {
+            "count": 996,
+            "recall": 0.2942
+          },
+          "warezmaster": {
+            "count": 944,
+            "recall": 0.0
+          },
+          "apache2": {
+            "count": 737,
+            "recall": 0.019
+          },
+          "satan": {
+            "count": 735,
+            "recall": 0.6381
+          },
+          "processtable": {
+            "count": 685,
+            "recall": 0.6847
+          },
+          "smurf": {
+            "count": 665,
+            "recall": 0.5368
+          }
+        }
+      },
+      "numeric38": {
+        "precision": 0.93,
+        "recall": 0.7378,
+        "f1": 0.8228,
+        "roc_auc": 0.8902,
+        "tn": 8998,
+        "fp": 713,
+        "fn": 3365,
+        "tp": 9468,
+        "n_features": 38,
+        "per_attack_recall": {
+          "neptune": {
+            "count": 4657,
+            "recall": 1.0
+          },
+          "guess_passwd": {
+            "count": 1231,
+            "recall": 0.3899
+          },
+          "mscan": {
+            "count": 996,
+            "recall": 0.8715
+          },
+          "warezmaster": {
+            "count": 944,
+            "recall": 0.5445
+          },
+          "apache2": {
+            "count": 737,
+            "recall": 0.6567
+          },
+          "satan": {
+            "count": 735,
+            "recall": 0.9891
+          },
+          "processtable": {
+            "count": 685,
+            "recall": 0.9358
+          },
+          "smurf": {
+            "count": 665,
+            "recall": 0.3564
+          }
+        }
+      },
+      "numeric38_protocol": {
+        "precision": 0.9308,
+        "recall": 0.7591,
+        "f1": 0.8363,
+        "roc_auc": 0.8887,
+        "tn": 8987,
+        "fp": 724,
+        "fn": 3091,
+        "tp": 9742,
+        "n_features": 41,
+        "per_attack_recall": {
+          "neptune": {
+            "count": 4657,
+            "recall": 1.0
+          },
+          "guess_passwd": {
+            "count": 1231,
+            "recall": 0.3867
+          },
+          "mscan": {
+            "count": 996,
+            "recall": 0.8524
+          },
+          "warezmaster": {
+            "count": 944,
+            "recall": 0.5413
+          },
+          "apache2": {
+            "count": 737,
+            "recall": 0.4803
+          },
+          "satan": {
+            "count": 735,
+            "recall": 0.9878
+          },
+          "processtable": {
+            "count": 685,
+            "recall": 0.9358
+          },
+          "smurf": {
+            "count": 665,
+            "recall": 0.9985
+          }
+        }
+      },
+      "numeric38_all_cat": {
+        "precision": 0.9185,
+        "recall": 0.8769,
+        "f1": 0.8972,
+        "roc_auc": 0.9431,
+        "tn": 8712,
+        "fp": 999,
+        "fn": 1580,
+        "tp": 11253,
+        "n_features": 122,
+        "per_attack_recall": {
+          "neptune": {
+            "count": 4657,
+            "recall": 0.9998
+          },
+          "guess_passwd": {
+            "count": 1231,
+            "recall": 0.9805
+          },
+          "mscan": {
+            "count": 996,
+            "recall": 0.9528
+          },
+          "warezmaster": {
+            "count": 944,
+            "recall": 0.5403
+          },
+          "apache2": {
+            "count": 737,
+            "recall": 0.9959
+          },
+          "satan": {
+            "count": 735,
+            "recall": 0.9891
+          },
+          "processtable": {
+            "count": 685,
+            "recall": 0.8423
+          },
+          "smurf": {
+            "count": 665,
+            "recall": 0.9985
+          }
+        }
+      }
+    }
+  }
+}
