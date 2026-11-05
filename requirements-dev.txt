@@ -1,0 +1,7 @@
+# Everything for development: tests, the Streamlit dashboard, and the benchmark.
+-r requirements.txt
+pytest>=7.0.0
+httpx>=0.27.0        # FastAPI TestClient
+matplotlib>=3.7.0    # src/evaluate.py ROC figure
+streamlit>=1.40.0    # src/dashboard.py
+altair>=5.0.0

@@ -25,13 +25,16 @@ ai-log-anomaly-detector/
 │   ├── download_nsl_kdd.py     # fetches the NSL-KDD benchmark files
 │   └── evaluate.py             # benchmark evaluation and ROC figure
 ├── tests/                      # pytest suite
-└── requirements.txt
+├── index.py                    # Vercel entrypoint (exposes the FastAPI app)
+├── vercel.json                 # Vercel function settings
+├── requirements.txt            # runtime dependencies (CLI + web app)
+└── requirements-dev.txt        # adds tests, dashboard, benchmark plotting
 ```
 
 ## Setup
 
 ```
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 ```
 
 ## Usage
@@ -84,6 +87,10 @@ Open http://127.0.0.1:8000 (interactive API docs at `/docs`). Click **Run demo**
 | `GET /api/health` | Server and model status |
 
 Uploads are limited to 10 MB and 100,000 rows. The server keeps one shared model (also saved to `models/anomaly_model.pkl`), so it is a demo service, not a multi-user one, and it has no authentication.
+
+### Deploying
+
+The repo deploys to Vercel as-is (`index.py` is the entrypoint and `requirements.txt` holds only the runtime dependencies). On serverless hosts each warm instance keeps its own model in `/tmp`, so after a cold start the app may say no model is trained and you train again.
 
 ## Dashboard
 

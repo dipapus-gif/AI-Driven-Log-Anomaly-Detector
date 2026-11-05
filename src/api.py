@@ -5,11 +5,13 @@ Docs: http://127.0.0.1:8000/docs
 
 The trained model lives in memory (and is also saved to models/anomaly_model.pkl
 so it survives restarts). One shared model per server process: this is a demo
-service, not a multi-tenant one.
+service, not a multi-tenant one. On serverless hosts each warm instance has its
+own model, so after a cold start you may need to train again.
 """
 
 import io
 import json
+import os
 import threading
 from pathlib import Path
 
@@ -33,7 +35,12 @@ from pipeline import (
 
 ROOT = Path(__file__).resolve().parent.parent
 WEB_DIR = ROOT / "web"
-MODEL_PATH = ROOT / "models" / "anomaly_model.pkl"
+# Serverless hosts (Vercel) have a read-only project directory; /tmp is writable.
+MODEL_PATH = (
+    Path("/tmp/anomaly_model.pkl")
+    if os.environ.get("VERCEL")
+    else ROOT / "models" / "anomaly_model.pkl"
+)
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 app = FastAPI(title="AI Log Anomaly Detector", version="1.0.0")
