@@ -4,25 +4,41 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Log Anomaly Detector</title>
+<script>
+  // Apply a saved theme choice before first paint so there is no flash.
+  try {
+    var saved = localStorage.getItem("theme");
+    if (saved === "light" || saved === "dark") document.documentElement.dataset.theme = saved;
+  } catch (e) { /* storage blocked: follow the system setting */ }
+</script>
 <style>
   :root {
+    color-scheme: light;
     --bg: #f6f7f9; --panel: #ffffff; --ink: #14181f; --muted: #5d6675;
     --line: #e2e5ea; --accent: #2563eb; --accent-ink: #ffffff;
     --bar: #9db8ee; --bar-hot: #e0553a; --ok: #1f8f5f; --warn: #b42318;
     --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   }
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
       --bg: #0f1218; --panel: #171b23; --ink: #e8ebf0; --muted: #9aa4b2;
       --line: #272d38; --accent: #5b8def; --accent-ink: #0b1020;
       --bar: #3a5694; --bar-hot: #ef6a50; --ok: #4cc38a; --warn: #f97066;
     }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0f1218; --panel: #171b23; --ink: #e8ebf0; --muted: #9aa4b2;
+    --line: #272d38; --accent: #5b8def; --accent-ink: #0b1020;
+    --bar: #3a5694; --bar-hot: #ef6a50; --ok: #4cc38a; --warn: #f97066;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--ink);
          font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
   .wrap { max-width: 1040px; margin: 0 auto; padding: 24px 16px 64px; }
   header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; justify-content: space-between; }
+  .head-right { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
   h2 { font-size: 13px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
   .sub { color: var(--muted); margin: 4px 0 24px; max-width: 62ch; }
@@ -34,15 +50,35 @@
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; }
   .card p { margin: 0 0 12px; color: var(--muted); font-size: 14px; }
   label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
-  input[type=file], input[type=number] { width: 100%; font: inherit; color: var(--ink);
+  input[type=file], input[type=number], input[type=text], input[type=password] {
+    width: 100%; font: inherit; color: var(--ink);
     padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
   .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
   button { font: inherit; cursor: pointer; padding: 8px 14px; border-radius: 8px;
            border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
   button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+  button.small { padding: 4px 10px; font-size: 13px; }
   button:disabled { opacity: .5; cursor: progress; }
   button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  #theme-btn { width: 36px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+  #theme-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  #theme-btn .moon { display: none; }
+  :root[data-theme="dark"] #theme-btn .sun { display: none; }
+  :root[data-theme="dark"] #theme-btn .moon { display: block; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) #theme-btn .sun { display: none; }
+    :root:not([data-theme="light"]) #theme-btn .moon { display: block; }
+  }
   a { color: var(--accent); }
+  #login-view { max-width: 380px; margin: 72px auto 0; }
+  #login-view .card p { margin-bottom: 8px; }
+  #login-view form button { width: 100%; margin-top: 18px; }
+  .tabs { display: flex; gap: 4px; margin: -4px 0 14px; border-bottom: 1px solid var(--line); }
+  .tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none;
+                 color: var(--muted); padding: 8px 10px; margin-bottom: -1px; font-weight: 600; }
+  .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+  .hint { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+  #login-error { min-height: 22px; margin: 12px 0 0; font-size: 14px; color: var(--warn); }
   #status { min-height: 24px; margin: 16px 0 0; font-size: 14px; }
   #status.err { color: var(--warn); } #status.ok { color: var(--ok); }
   section { margin-top: 24px; }
@@ -72,8 +108,50 @@
 <div class="wrap">
   <header>
     <h1>Log Anomaly Detector</h1>
-    <span id="model-pill" class="pill">No model trained</span>
+    <div class="head-right">
+      <span id="model-pill" class="pill" hidden>No model trained</span>
+      <span id="user-pill" class="pill" hidden></span>
+      <button id="logout-btn" class="small" hidden>Sign out</button>
+      <button id="theme-btn" type="button" aria-label="Switch to dark mode" title="Switch to dark mode">
+        <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      </button>
+    </div>
   </header>
+
+  <!-- Sign-in / sign-up screen -->
+  <div id="login-view" hidden>
+    <div class="card">
+      <div class="tabs" role="tablist" aria-label="Account">
+        <button type="button" role="tab" id="tab-login" aria-selected="true" aria-controls="login-form">Sign in</button>
+        <button type="button" role="tab" id="tab-signup" aria-selected="false" aria-controls="signup-form" hidden>Create account</button>
+      </div>
+      <form id="login-form">
+        <p>Sign in to train models and analyze logs.</p>
+        <label for="username">Username</label>
+        <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+        <button id="login-btn" class="primary" type="submit">Sign in</button>
+      </form>
+      <form id="signup-form" hidden>
+        <p>Create an account. Each account gets its own trained model.</p>
+        <label for="su-username">Username</label>
+        <input id="su-username" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" minlength="3" maxlength="32" required>
+        <p class="hint">3–32 letters, numbers, dots, dashes or underscores.</p>
+        <label for="su-password">Password</label>
+        <input id="su-password" name="password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required>
+        <p class="hint">At least 10 characters.</p>
+        <label for="su-confirm">Confirm password</label>
+        <input id="su-confirm" name="confirm" type="password" autocomplete="new-password" required>
+        <button id="signup-btn" class="primary" type="submit">Create account</button>
+      </form>
+      <p id="login-error" role="alert"></p>
+    </div>
+  </div>
+
+  <!-- The app itself, shown only when signed in -->
+  <div id="app-view" hidden>
   <p class="sub">Teach an Isolation Forest what normal network activity looks like, then flag sessions that don't fit: long durations, packet floods, repeated failed logins.</p>
 
   <div class="grid">
@@ -129,6 +207,7 @@
       <img class="roc" id="roc" alt="ROC curves for Isolation Forest and One-Class SVM on four feature sets" hidden>
     </div>
   </section>
+  </div>
 </div>
 
 <script>
@@ -136,16 +215,46 @@ const $ = (sel) => document.querySelector(sel);
 const fmt = (n, d = 2) => Number(n).toLocaleString(undefined, { maximumFractionDigits: d });
 const pct = (n) => (Number(n) * 100).toFixed(1) + "%";
 
+/* ---------- theme (light / dark) ---------- */
+const root = document.documentElement;
+const systemDark = window.matchMedia("(prefers-color-scheme: dark)");
+
+function currentTheme() {
+  return root.dataset.theme || (systemDark.matches ? "dark" : "light");
+}
+function syncThemeButton() {
+  const next = currentTheme() === "dark" ? "light" : "dark";
+  const label = `Switch to ${next} mode`;
+  $("#theme-btn").setAttribute("aria-label", label);
+  $("#theme-btn").title = label;
+}
+$("#theme-btn").addEventListener("click", () => {
+  const next = currentTheme() === "dark" ? "light" : "dark";
+  root.dataset.theme = next;
+  try { localStorage.setItem("theme", next); } catch (_) { /* choice just won't persist */ }
+  syncThemeButton();
+});
+systemDark.addEventListener("change", syncThemeButton);
+syncThemeButton();
+
+/* ---------- helpers ---------- */
 function setStatus(msg, kind = "") {
   const el = $("#status");
   el.textContent = msg;
   el.className = kind;
 }
 
+class SignedOut extends Error {}
+
 async function api(path, options) {
   const res = await fetch(path, options);
   let body = null;
   try { body = await res.json(); } catch (_) { /* non-JSON error */ }
+  if (res.status === 401 && path !== "/api/login") {
+    // The first check on page load is just "am I signed in yet?", not an expiry.
+    showLogin(path === "/api/session" ? "" : "Your session ended. Please sign in again.");
+    throw new SignedOut();
+  }
   if (!res.ok) {
     let detail = body && body.detail;
     if (Array.isArray(detail)) detail = detail.map((d) => d.msg).join("; ");
@@ -158,10 +267,99 @@ async function run(buttons, label, fn) {
   buttons.forEach((b) => (b.disabled = true));
   setStatus(label + "…");
   try { await fn(); }
-  catch (e) { setStatus(e.message, "err"); }
+  catch (e) { if (!(e instanceof SignedOut)) setStatus(e.message, "err"); }
   finally { buttons.forEach((b) => (b.disabled = false)); }
 }
 
+/* ---------- sign in / out ---------- */
+let benchmarkLoaded = false;
+
+function showLogin(message = "") {
+  $("#app-view").hidden = true;
+  $("#login-view").hidden = false;
+  ["#model-pill", "#user-pill", "#logout-btn"].forEach((s) => ($(s).hidden = true));
+  $("#results").hidden = true;
+  $("#bench").hidden = true;
+  benchmarkLoaded = false;
+  setStatus("");
+  setAuthMode("login");
+  $("#login-error").textContent = message;
+  ["#password", "#su-password", "#su-confirm"].forEach((f) => ($(f).value = ""));
+  $("#username").focus();
+}
+
+function setAuthMode(mode) {
+  const signup = mode === "signup";
+  $("#login-form").hidden = signup;
+  $("#signup-form").hidden = !signup;
+  $("#tab-login").setAttribute("aria-selected", String(!signup));
+  $("#tab-signup").setAttribute("aria-selected", String(signup));
+  $("#login-error").textContent = "";
+  $(signup ? "#su-username" : "#username").focus();
+}
+$("#tab-login").addEventListener("click", () => setAuthMode("login"));
+$("#tab-signup").addEventListener("click", () => setAuthMode("signup"));
+
+function showApp(session) {
+  $("#login-view").hidden = true;
+  $("#app-view").hidden = false;
+  $("#login-error").textContent = "";
+  $("#model-pill").hidden = false;
+  setModel(session.model);
+  const named = session.auth_required;
+  $("#user-pill").hidden = !named;
+  $("#logout-btn").hidden = !named;
+  if (named) $("#user-pill").textContent = session.user;
+  if (!benchmarkLoaded) { benchmarkLoaded = true; loadBenchmark(); }
+}
+
+$("#login-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const btn = $("#login-btn");
+  btn.disabled = true;
+  $("#login-error").textContent = "";
+  try {
+    await api("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: $("#username").value.trim(), password: $("#password").value }),
+    });
+    $("#password").value = "";
+    showApp(await api("/api/session"));
+  } catch (e) {
+    if (!(e instanceof SignedOut)) $("#login-error").textContent = e.message;
+  } finally { btn.disabled = false; }
+});
+
+$("#signup-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const password = $("#su-password").value;
+  if (password !== $("#su-confirm").value) {
+    $("#login-error").textContent = "The two passwords don't match.";
+    return;
+  }
+  const btn = $("#signup-btn");
+  btn.disabled = true;
+  $("#login-error").textContent = "";
+  try {
+    await api("/api/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: $("#su-username").value.trim(), password }),
+    });
+    ["#su-password", "#su-confirm"].forEach((f) => ($(f).value = ""));
+    showApp(await api("/api/session"));
+  } catch (e) {
+    if (!(e instanceof SignedOut)) $("#login-error").textContent = e.message;
+  } finally { btn.disabled = false; }
+});
+
+$("#logout-btn").addEventListener("click", async () => {
+  try { await api("/api/logout", { method: "POST" }); } catch (_) { /* leave anyway */ }
+  showLogin();
+});
+
+/* ---------- app ---------- */
 function setModel(model) {
   const pill = $("#model-pill");
   if (model) {
@@ -239,13 +437,15 @@ function renderResults(r) {
   $("#results").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+const actionButtons = () => [$("#train-btn"), $("#analyze-btn"), $("#demo-btn")];
+
 $("#train-btn").addEventListener("click", () => {
   const file = $("#train-file").files[0];
   if (!file) return setStatus("Choose a training CSV first.", "err");
   const form = new FormData();
   form.append("file", file);
   form.append("contamination", $("#contamination").value || "0.05");
-  run([$("#train-btn"), $("#analyze-btn"), $("#demo-btn")], "Training", async () => {
+  run(actionButtons(), "Training", async () => {
     const m = await api("/api/train", { method: "POST", body: form });
     setModel(m);
     setStatus(`Trained on ${fmt(m.trained_rows, 0)} rows. Now analyze some logs.`, "ok");
@@ -257,14 +457,14 @@ $("#analyze-btn").addEventListener("click", () => {
   if (!file) return setStatus("Choose a CSV to analyze first.", "err");
   const form = new FormData();
   form.append("file", file);
-  run([$("#train-btn"), $("#analyze-btn"), $("#demo-btn")], "Analyzing", async () => {
+  run(actionButtons(), "Analyzing", async () => {
     renderResults(await api("/api/analyze", { method: "POST", body: form }));
     setStatus("Done.", "ok");
   });
 });
 
 $("#demo-btn").addEventListener("click", () => {
-  run([$("#train-btn"), $("#analyze-btn"), $("#demo-btn")], "Running demo", async () => {
+  run(actionButtons(), "Running demo", async () => {
     const r = await api("/api/demo", { method: "POST" });
     setModel({ trained_rows: r.rows });
     renderResults(r);
@@ -276,6 +476,7 @@ async function loadBenchmark() {
   try {
     const b = await api("/api/benchmark");
     const table = $("#bench-table");
+    table.replaceChildren();
     const cols = ["Feature set", "Detector", "Features", "Precision", "Recall", "F1", "ROC AUC"];
     const thead = table.createTHead().insertRow();
     cols.forEach((c) => { const th = document.createElement("th"); th.textContent = c; thead.append(th); });
@@ -295,9 +496,18 @@ async function loadBenchmark() {
   } catch (_) { /* benchmark is optional */ }
 }
 
+/* ---------- start ---------- */
 (async function init() {
-  try { const h = await api("/api/health"); setModel(h.model); } catch (_) {}
-  loadBenchmark();
+  try {
+    const options = await api("/api/auth/options");
+    $("#tab-signup").hidden = !options.signup_enabled;
+  } catch (_) { /* sign-up just stays hidden */ }
+  try {
+    showApp(await api("/api/session"));
+  } catch (e) {
+    if (e instanceof SignedOut) return;           // login screen already shown
+    showLogin(e.message);                         // e.g. login not configured on the server
+  }
 })();
 </script>
 </body>

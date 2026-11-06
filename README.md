@@ -19,6 +19,8 @@ ai-log-anomaly-detector/
 │   ├── engine.py               # preprocessing, training, detection
 │   ├── app.py                  # command line interface
 │   ├── api.py                  # FastAPI service (serves web/index.html)
+│   ├── auth.py                 # password hashing, signed sessions, rate limiting
+│   ├── users.py                # account storage (Postgres/Neon, SQLite locally)
 │   ├── dashboard.py            # Streamlit dashboard
 │   ├── pipeline.py             # validation and summaries shared by api + dashboard
 │   ├── generate_data.py        # synthetic data generator (normal + attacks)
@@ -75,22 +77,42 @@ A FastAPI service with a small browser front end: upload logs, train, analyze, a
 uvicorn api:app --app-dir src --reload
 ```
 
-Open http://127.0.0.1:8000 (interactive API docs at `/docs`). Click **Run demo** to try it with no files.
+Accounts are stored in a local SQLite file by default. For quick local use without signing in, set `AUTH_DISABLED=1` (this also enables the interactive API docs at `/docs`). Otherwise set a signing key first:
+
+```
+export AUTH_SECRET=$(python src/auth.py secret)
+uvicorn api:app --app-dir src --reload
+```
+
+Open http://127.0.0.1:8000, create an account, and click **Run demo** to try it with no files. The header has a light/dark toggle that follows your system setting until you pick one.
+
+### Accounts and security
+
+| Setting | Purpose |
+|---|---|
+| `AUTH_SECRET` | Required. 32+ random characters that sign session cookies (`python src/auth.py secret`). |
+| `DATABASE_URL` | Postgres connection string (for example Neon). Required on Vercel, where the filesystem is wiped between runs. Without it, accounts use a local SQLite file. |
+| `SIGNUP_ENABLED=0` | Closes sign-ups. Existing accounts can still sign in. |
+| `AUTH_DISABLED=1` | Turns login off. Local development only. |
+
+Passwords are stored only as salted scrypt hashes. Sessions are signed, HttpOnly cookies that last 8 hours. Failed logins and sign-ups are rate limited per client, per server instance (best effort on serverless). If `AUTH_SECRET` is missing the server refuses all access instead of running open. There is no email verification or password reset yet.
 
 | Endpoint | What it does |
 |---|---|
+| `POST /api/signup`, `/api/login`, `/api/logout` | Create an account, sign in, sign out |
+| `GET /api/session` | Current user and their model status |
 | `POST /api/train` | Train on an uploaded CSV (`file`, optional `contamination`) |
 | `POST /api/analyze` | Score an uploaded CSV with the current model |
 | `POST /api/demo` | Generate synthetic traffic with attacks, train, and analyze |
 | `GET /api/sample.csv` | Download a synthetic CSV to try uploading |
 | `GET /api/benchmark` | NSL-KDD benchmark table |
-| `GET /api/health` | Server and model status |
+| `GET /api/health` | Public liveness check |
 
-Uploads are limited to 10 MB and 100,000 rows. The server keeps one shared model (also saved to `models/anomaly_model.pkl`), so it is a demo service, not a multi-user one, and it has no authentication.
+Every route except sign-up, login, health and the page itself needs a signed-in session. Uploads are limited to 10 MB and 100,000 rows. Each account has its own trained model, saved under `models/`.
 
 ### Deploying
 
-The repo deploys to Vercel as-is (`index.py` is the entrypoint and `requirements.txt` holds only the runtime dependencies). On serverless hosts each warm instance keeps its own model in `/tmp`, so after a cold start the app may say no model is trained and you train again.
+The repo deploys to Vercel as-is (`index.py` is the entrypoint and `requirements.txt` holds only the runtime dependencies). Set `AUTH_SECRET` and `DATABASE_URL` as environment variables on the project. On serverless hosts each warm instance keeps trained models in `/tmp`, so after a cold start the app may say no model is trained and you train again. Accounts are not affected, since they live in the database.
 
 ## Dashboard
 
@@ -171,4 +193,4 @@ Dataset: Tavallaee, Bagheri, Lu, Ghorbani, "A Detailed Analysis of the KDD CUP 9
 - Repeat the evaluation over several random seeds and report the spread.
 - Test whether the service effect is real: evaluate with and without the rare-service rows, or hold out entire services.
 - Add a supervised baseline (for example a random forest) as a reference ceiling, and try an autoencoder detector.
-- Add authentication and per-user models before exposing the web app publicly.
+- Add email verification and password reset for accounts.
