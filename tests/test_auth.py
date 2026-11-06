@@ -8,6 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 import api  # noqa: E402
 import auth  # noqa: E402
+import db  # noqa: E402
 import users  # noqa: E402
 from generate_data import generate  # noqa: E402
 from test_api import PASSWORD, USER, anon_client, client, csv_file  # noqa: E402,F401  (fixtures)
@@ -174,6 +175,7 @@ def test_short_secret_counts_as_unconfigured(anon_client, monkeypatch):
 
 def test_serverless_without_a_database_refuses_rather_than_losing_accounts(anon_client, monkeypatch):
     monkeypatch.setenv("VERCEL", "1")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
     assert signup(anon_client).status_code == 503
     assert users.available() is False
 
@@ -184,7 +186,7 @@ def test_database_outage_is_a_503_not_a_crash(anon_client, monkeypatch):
     def down():
         raise OSError("connection refused")
 
-    monkeypatch.setattr(users, "_connect", down)
+    monkeypatch.setattr(db, "_connect", down)
     other = TestClient(api.app)
     assert login(other).status_code == 503
     assert signup(other, "newuser1").status_code == 503

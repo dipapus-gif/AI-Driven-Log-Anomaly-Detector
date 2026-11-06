@@ -16,11 +16,10 @@ PASSWORD = "correct horse battery"
 
 
 @pytest.fixture()
-def anon_client(tmp_path, monkeypatch):
-    """A client against a fresh account database, with nobody signed in."""
+def anon_client(database, tmp_path, monkeypatch):
+    """A client against a fresh database (SQLite and Postgres), nobody signed in."""
     monkeypatch.setenv("AUTH_SECRET", "x" * 48)
-    monkeypatch.setenv("USERS_DB_PATH", str(tmp_path / "users.db"))
-    for name in ("AUTH_DISABLED", "SIGNUP_ENABLED", "DATABASE_URL", "VERCEL"):
+    for name in ("AUTH_DISABLED", "SIGNUP_ENABLED", "VERCEL"):
         monkeypatch.delenv(name, raising=False)
     # Keep tests away from any real saved models and start with none loaded.
     monkeypatch.setattr(api, "MODEL_DIR", tmp_path)
