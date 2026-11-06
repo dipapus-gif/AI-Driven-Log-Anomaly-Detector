@@ -114,6 +114,19 @@ Every route except sign-up, login, health and the page itself needs a signed-in 
 
 The repo deploys to Vercel as-is (`index.py` is the entrypoint and `requirements.txt` holds only the runtime dependencies). Set `AUTH_SECRET` and `DATABASE_URL` as environment variables on the project. On serverless hosts each warm instance keeps trained models in `/tmp`, so after a cold start the app may say no model is trained and you train again. Accounts are not affected, since they live in the database.
 
+## Threat detection and response platform
+
+Beyond the CSV analysis, the web app is an automated detect → investigate → respond pipeline (the **Threat platform** tab).
+
+1. **Ingest.** Ship logs continuously with `python src/tailer.py --url https://YOUR-APP/api/ingest /var/log/auth.log` (set `INGEST_TOKEN`; create tokens in the dashboard), or POST JSON lines, key=value firewall logs or sshd syslog to `/api/ingest` from a webhook or syslog forwarder.
+2. **Detect.** Events are grouped into 15-minute windows per source IP and scored by an Isolation Forest on 15 features: packet-size variance, request-timing entropy (beaconing), off-hours activity against the user's own baseline, rare/high ports, foreign destinations, new subnets, failed-login ratio and more.
+3. **Investigate.** Each alert goes to an analyst agent with tools: window events, IP reputation (AbuseIPDB / VirusTotal), directory group lookup, and registered-job matching (so a scheduled backup is dismissed as a false positive). With `ANTHROPIC_API_KEY` set it uses Claude through tool use; without it, a deterministic rules investigator does the same job. Output is a structured SOC report (summary, root cause, evidence, timeline, MITRE technique, containment) downloadable as Markdown.
+4. **Respond.** Alerts go to your HTTPS webhook (Slack-style). Isolating a host or blocking an IP is never automatic: above the isolate threshold it waits for an analyst's approval, protected hosts are always refused, and every step is recorded. The default connector is a dry run; set `RESPONSE_WEBHOOK_URL` (and `RESPONSE_WEBHOOK_TOKEN`) to call your firewall/EDR.
+
+Safety rules: log content is treated as untrusted text (prompt-injection resistant: the model can only suggest, policy code executes, action targets must come from the incident's own indicators); the agent can't dismiss an alert unless a registered job fully matches or confidence is very high and risk is below the isolate threshold, and never if threat intel says malicious; webhooks are SSRF-guarded.
+
+Environment variables (set in Vercel project settings, never in the repo): `ANTHROPIC_API_KEY`, `AGENT_MODEL`, `AGENT_MAX_PER_HOUR`, `ABUSEIPDB_API_KEY`, `VIRUSTOTAL_API_KEY`, `RESPONSE_WEBHOOK_URL`, `RESPONSE_WEBHOOK_TOKEN`. Without intel keys a built-in demo feed covers the simulator's addresses. Click **Load demo environment** to try everything with simulated attacks.
+
 ## Dashboard
 
 ```

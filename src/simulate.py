@@ -48,7 +48,7 @@ DEMO_CONFIG = {
             "internal_only": True,
         },
     ],
-    "thresholds": {"alert": 70, "isolate": 90},
+    "thresholds": {"alert": 70, "isolate": 80},
 }
 
 _USERS = {

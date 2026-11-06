@@ -3,8 +3,9 @@
 Run:  uvicorn api:app --app-dir src --reload      (then open http://127.0.0.1:8000)
 Docs: http://127.0.0.1:8000/docs   (only when login is disabled; see auth.py)
 
-Every /api route except /api/health, /api/auth/options, /api/signup, /api/login
-and /api/logout needs a signed-in session. Each account has its own trained model.
+Every /api route except /api/health, /api/auth/options, /api/signup, /api/login, /api/logout
+and /api/ingest (which uses an ingest token) needs a signed-in session. Each account has its own
+data, trained models, incidents and settings. See platform_api.py for the detection platform.
 """
 
 import io
@@ -21,6 +22,8 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel
 
 import auth
+import platform_api
+import soc
 import users
 from engine import LogAnomalyEngine
 from generate_data import generate
@@ -332,6 +335,14 @@ def roc_image():
     if not ROC_PATH.exists():
         raise HTTPException(404, "ROC image not found.")
     return FileResponse(ROC_PATH, media_type="image/png")
+
+
+app.include_router(platform_api.create_router(require_user))
+
+
+@app.exception_handler(soc.SocError)
+async def _soc_error(_request, exc):
+    return JSONResponse(status_code=400, content={"detail": str(exc)})
 
 
 @app.get("/")

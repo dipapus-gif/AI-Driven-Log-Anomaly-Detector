@@ -2,7 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
     "index.py": {
-      "excludeFiles": "{tests/**,data/**,models/**,.git/**}"
+      "excludeFiles": "{tests/**,data/**,models/**,.git/**}",
+      "maxDuration": 60
     }
   }
 }

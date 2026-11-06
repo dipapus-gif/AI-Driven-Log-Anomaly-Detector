@@ -101,6 +101,45 @@
   td.num { font-family: var(--mono); font-size: 13px; }
   .risk { font-weight: 700; color: var(--bar-hot); }
   img.roc { width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--line); background: #fff; }
+
+  /* platform */
+  .maintabs { display: flex; gap: 4px; margin: 20px 0 16px; border-bottom: 1px solid var(--line); }
+  .maintabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none;
+                     color: var(--muted); padding: 8px 12px; margin-bottom: -1px; font-weight: 600; }
+  .maintabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+  .badge { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px;
+           border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+  .badge.confirmed, .badge.high, .badge.critical, .badge.pending_approval { color: var(--warn); border-color: var(--warn); }
+  .badge.dismissed, .badge.low, .badge.executed, .badge.resolved { color: var(--ok); border-color: var(--ok); }
+  .badge.needs_review, .badge.medium, .badge.recommended { color: var(--accent); border-color: var(--accent); }
+  .split { display: grid; gap: 16px; grid-template-columns: minmax(280px, 380px) 1fr; align-items: start; }
+  @media (max-width: 860px) { .split { grid-template-columns: 1fr; } }
+  .list { display: flex; flex-direction: column; gap: 6px; max-height: 560px; overflow-y: auto; }
+  .item { text-align: left; width: 100%; display: block; padding: 10px 12px; }
+  .item[aria-current="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .item .top { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+  .item .ttl { font-weight: 600; font-size: 14px; margin-top: 4px; overflow-wrap: anywhere; }
+  .item .meta { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+  .detail h3 { margin: 18px 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .detail h3:first-child { margin-top: 0; }
+  .detail p, .detail li { color: var(--ink); font-size: 14px; margin: 0 0 8px; overflow-wrap: anywhere; }
+  .detail ul { margin: 0; padding-left: 20px; }
+  .detail .headline { font-size: 18px; font-weight: 700; margin: 0 0 8px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .trace { border-left: 2px solid var(--line); margin: 0; padding: 0 0 0 12px; }
+  .trace .step { margin: 0 0 10px; font-size: 13px; overflow-wrap: anywhere; }
+  .trace code, pre.code { font-family: var(--mono); font-size: 12px; background: var(--bg); border: 1px solid var(--line);
+                          border-radius: 6px; padding: 2px 6px; }
+  pre.code { display: block; padding: 10px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; margin: 6px 0; }
+  .action { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between;
+            padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .action .what { flex: 1 1 240px; overflow-wrap: anywhere; }
+  .action .why { color: var(--muted); font-size: 13px; }
+  button.danger { background: var(--warn); color: #fff; border-color: var(--warn); font-weight: 600; }
+  textarea { width: 100%; min-height: 260px; font: 13px/1.45 var(--mono); color: var(--ink); background: var(--bg);
+             border: 1px solid var(--line); border-radius: 8px; padding: 10px; resize: vertical; }
+  .empty { color: var(--muted); font-size: 14px; padding: 12px 0; }
+  .newtoken { border: 1px solid var(--ok); border-radius: 8px; padding: 10px; margin-top: 12px; }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -152,6 +191,69 @@
 
   <!-- The app itself, shown only when signed in -->
   <div id="app-view" hidden>
+  <p class="sub">Automated threat detection and response: logs stream in, the model flags unusual behaviour, an AI analyst investigates each alert with tools, and defensive actions wait for your approval.</p>
+  <div class="maintabs" role="tablist">
+    <button type="button" role="tab" id="mt-platform" aria-selected="true">Threat platform</button>
+    <button type="button" role="tab" id="mt-csv" aria-selected="false">CSV analysis</button>
+  </div>
+
+  <div id="panel-platform">
+    <div class="stats" id="p-stats"></div>
+    <p id="p-status" role="status" aria-live="polite" class="note"></p>
+
+    <div class="card" style="margin-top:16px">
+      <h2>Get started</h2>
+      <p>No logs yet? Load a simulated environment: weeks of normal traffic to learn from, then a live window with four attacks (brute force, data exfiltration, C2 beaconing, port scan) and two harmless look-alikes (a backup job, an admin working late).</p>
+      <div class="row">
+        <button id="p-demo" class="primary">Load demo environment</button>
+        <button id="p-run">Run detection and investigation</button>
+        <button id="p-train">Retrain on stored events</button>
+        <button id="p-reset" class="small" style="margin-left:auto">Delete all data</button>
+      </div>
+    </div>
+
+    <div class="card" id="p-approvals-card" style="margin-top:16px" hidden>
+      <h2>Waiting for your approval</h2>
+      <div id="p-approvals"></div>
+    </div>
+
+    <div class="split" style="margin-top:16px">
+      <div class="card">
+        <h2>Incidents</h2>
+        <label for="p-filter" class="hint" style="margin-top:0">Show</label>
+        <select id="p-filter" style="width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:10px">
+          <option value="">All</option><option value="confirmed">Confirmed threats</option>
+          <option value="needs_review">Needs review</option><option value="dismissed">Dismissed as false positives</option>
+          <option value="resolved">Resolved</option><option value="new">Not yet investigated</option>
+        </select>
+        <div class="list" id="p-list"></div>
+      </div>
+      <div class="card detail" id="p-detail"><p class="empty">Select an incident to see the investigation.</p></div>
+    </div>
+
+    <div class="grid" style="margin-top:16px">
+      <div class="card">
+        <h2>Connect a log source</h2>
+        <p>Create an ingest token, then ship logs with the bundled tailer or any webhook. JSON lines, key=value firewall logs and sshd syslog are understood.</p>
+        <label for="p-token-label">Token name</label>
+        <input id="p-token-label" type="text" maxlength="60" placeholder="e.g. web-server-1">
+        <div class="row"><button id="p-token-new" class="primary">Create token</button></div>
+        <div id="p-token-fresh"></div>
+        <div id="p-tokens"></div>
+        <h2 style="margin-top:18px">Ship logs</h2>
+        <pre class="code" id="p-howto"></pre>
+      </div>
+      <div class="card">
+        <h2>Settings</h2>
+        <p>Alert webhook (HTTPS only), thresholds, registered jobs (so scheduled work is recognised as benign), the user directory used for permission lookups, and protected hosts that can never be isolated.</p>
+        <textarea id="p-config" spellcheck="false" aria-label="Settings as JSON"></textarea>
+        <div class="row"><button id="p-config-save" class="primary">Save settings</button></div>
+        <p class="hint" id="p-config-note"></p>
+      </div>
+    </div>
+  </div>
+
+  <div id="panel-csv" hidden>
   <p class="sub">Teach an Isolation Forest what normal network activity looks like, then flag sessions that don't fit: long durations, packet floods, repeated failed logins.</p>
 
   <div class="grid">
@@ -207,6 +309,7 @@
       <img class="roc" id="roc" alt="ROC curves for Isolation Forest and One-Class SVM on four feature sets" hidden>
     </div>
   </section>
+  </div>
   </div>
 </div>
 
@@ -281,6 +384,11 @@ function showLogin(message = "") {
   $("#results").hidden = true;
   $("#bench").hidden = true;
   benchmarkLoaded = false;
+  platformLoaded = false;
+  P.selected = null; P.since = null;
+  $("#p-token-fresh").replaceChildren();
+  $("#p-detail").replaceChildren(el("p", "empty", "Select an incident to see the investigation."));
+  showTab("platform");
   setStatus("");
   setAuthMode("login");
   $("#login-error").textContent = message;
@@ -311,6 +419,7 @@ function showApp(session) {
   $("#logout-btn").hidden = !named;
   if (named) $("#user-pill").textContent = session.user;
   if (!benchmarkLoaded) { benchmarkLoaded = true; loadBenchmark(); }
+  loadPlatform();
 }
 
 $("#login-form").addEventListener("submit", async (event) => {
@@ -494,6 +603,292 @@ async function loadBenchmark() {
     if (b.roc_available) { const img = $("#roc"); img.src = "/api/benchmark/roc.png"; img.hidden = false; }
     $("#bench").hidden = false;
   } catch (_) { /* benchmark is optional */ }
+}
+
+
+/* ---------- platform ---------- */
+const P = { selected: null, since: null, busy: false };
+const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; return n; };
+const badge = (value, text) => el("span", "badge " + String(value).replace(/\W/g, "_"), text || String(value).replace(/_/g, " "));
+const when = (ts) => new Date(ts * 1000).toLocaleString();
+const pApi = (path, opts) => api("/api/platform" + path, opts);
+const pPost = (path, body) => pApi(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+
+function setPStatus(msg, kind = "") { const n = $("#p-status"); n.textContent = msg; n.style.color = kind === "err" ? "var(--warn)" : kind === "ok" ? "var(--ok)" : ""; }
+
+async function pRun(label, fn) {
+  if (P.busy) return;
+  P.busy = true;
+  const buttons = ["#p-demo", "#p-run", "#p-train", "#p-reset"].map($);
+  buttons.forEach((b) => (b.disabled = true));
+  setPStatus(label + "…");
+  try { await fn(); }
+  catch (e) { if (!(e instanceof SignedOut)) setPStatus(e.message, "err"); }
+  finally { buttons.forEach((b) => (b.disabled = false)); P.busy = false; }
+}
+
+function showTab(name) {
+  const csv = name === "csv";
+  $("#panel-csv").hidden = !csv;
+  $("#panel-platform").hidden = csv;
+  $("#mt-csv").setAttribute("aria-selected", String(csv));
+  $("#mt-platform").setAttribute("aria-selected", String(!csv));
+}
+$("#mt-platform").addEventListener("click", () => showTab("platform"));
+$("#mt-csv").addEventListener("click", () => showTab("csv"));
+
+async function refreshOverview() {
+  const o = await pApi("/overview");
+  const c = o.incidents || {};
+  $("#p-stats").replaceChildren(
+    stat(fmt(o.events, 0), "events stored"),
+    stat(fmt(c.confirmed || 0, 0), "confirmed threats"),
+    stat(fmt(c.needs_review || 0, 0), "need review"),
+    stat(fmt(c.dismissed || 0, 0), "false positives dismissed"),
+    stat(fmt(o.pending_approvals, 0), "awaiting approval"),
+    stat(o.agent.mode === "llm" ? "Claude" : "Rules", "analyst" + (o.agent.model ? " · " + o.agent.model : " (set ANTHROPIC_API_KEY for the AI analyst)")),
+  );
+  $("#model-pill").hidden = false;
+  setModel(o.model ? { trained_rows: o.model.n_windows } : null);
+  if (o.model) $("#model-pill").textContent = `Baseline ready · ${fmt(o.model.n_windows, 0)} windows`;
+  return o;
+}
+
+async function refreshIncidents() {
+  const status = $("#p-filter").value;
+  const r = await pApi("/incidents" + (status ? "?status=" + encodeURIComponent(status) : ""));
+  const list = $("#p-list");
+  if (!r.incidents.length) {
+    list.replaceChildren(el("p", "empty", "No incidents here yet. Load the demo or send logs, then run detection."));
+    return;
+  }
+  list.replaceChildren(...r.incidents.map((i) => {
+    const b = el("button", "item");
+    b.type = "button";
+    if (P.selected === i.id) b.setAttribute("aria-current", "true");
+    const top = el("div", "top");
+    top.append(el("span", "risk", "Risk " + fmt(i.risk_score, 0)), badge(i.status));
+    b.append(top, el("div", "ttl", i.title || ("Activity from " + i.src_ip)),
+             el("div", "meta", `${i.src_ip}${i.username ? " · " + i.username : ""} · ${when(i.window_start)}`));
+    b.addEventListener("click", () => { P.selected = i.id; refreshIncidents(); showIncident(i.id); });
+    return b;
+  }));
+}
+
+async function refreshApprovals() {
+  const r = await pApi("/actions?status=pending_approval");
+  $("#p-approvals-card").hidden = !r.actions.length;
+  $("#p-approvals").replaceChildren(...r.actions.map(actionRow));
+}
+
+function actionRow(a) {
+  const row = el("div", "action");
+  const what = el("div", "what");
+  const label = a.kind === "isolate_host" ? "Isolate host" : a.kind === "block_ip" ? "Block address" : "Send alert";
+  const head = el("div", "", "");
+  head.append(el("strong", "", `${label} ${a.target}`), document.createTextNode(" "), badge(a.status));
+  what.append(head);
+  if (a.detail.reason) what.append(el("div", "why", a.detail.reason));
+  const last = (a.detail.history || []).slice(-1)[0];
+  if (last && last.note) what.append(el("div", "why", last.note));
+  row.append(what);
+  if (a.status === "pending_approval" || a.status === "recommended") {
+    const box = el("div", "row"); box.style.margin = "0";
+    const yes = el("button", "danger", "Approve"); yes.type = "button";
+    const no = el("button", "", "Reject"); no.type = "button";
+    const decide = (verb) => async () => {
+      if (verb === "approve" && !confirm(`${label} ${a.target}? This runs the configured containment connector.`)) return;
+      [yes, no].forEach((b) => (b.disabled = true));
+      try {
+        const r = await pPost(`/actions/${a.id}/${verb}`);
+        setPStatus(`${label} ${a.target}: ${r.status.replace(/_/g, " ")}.`, "ok");
+      } catch (e) { if (!(e instanceof SignedOut)) setPStatus(e.message, "err"); }
+      await Promise.all([refreshOverview(), refreshApprovals(), P.selected ? showIncident(P.selected) : null]);
+    };
+    yes.addEventListener("click", decide("approve")); no.addEventListener("click", decide("reject"));
+    box.append(yes, no); row.append(box);
+  }
+  return row;
+}
+
+function section(title, ...nodes) { const d = el("div"); d.append(el("h3", "", title), ...nodes); return d; }
+function bullets(items) { const ul = el("ul"); items.forEach((t) => ul.append(el("li", "", t))); return ul; }
+
+async function showIncident(id) {
+  const box = $("#p-detail");
+  let inc;
+  try { inc = await pApi("/incidents/" + id); }
+  catch (e) { if (!(e instanceof SignedOut)) box.replaceChildren(el("p", "empty", e.message)); return; }
+  const r = inc.report;
+  const parts = [];
+  if (!r) {
+    parts.push(el("p", "headline", "Activity from " + inc.src_ip), el("p", "", "Not investigated yet."));
+    const b = el("button", "primary", "Investigate now"); b.type = "button";
+    b.addEventListener("click", () => pRun("Investigating", async () => { await pPost(`/incidents/${id}/investigate`); await refreshAll(); await showIncident(id); setPStatus("Investigation finished.", "ok"); }));
+    parts.push(b);
+  } else {
+    parts.push(el("p", "headline", r.title));
+    const chips = el("div", "chips");
+    chips.append(badge(inc.status), badge(r.severity, "severity " + r.severity),
+                 el("span", "badge", `${Math.round(r.confidence * 100)}% confidence`),
+                 el("span", "badge", "ML risk " + fmt(r.ml.risk, 0)), el("span", "badge", r.generated_by));
+    parts.push(chips);
+    if (r.summary) parts.push(section("Summary", el("p", "", r.summary)));
+    if (r.root_cause) parts.push(section("Root cause", el("p", "", r.root_cause)));
+    if (r.benign_explanation) parts.push(section("Why this looks benign", el("p", "", r.benign_explanation)));
+    if (r.evidence.length) parts.push(section("Evidence", bullets(r.evidence)));
+    if (r.timeline.length) parts.push(section("Timeline (UTC)", bullets(r.timeline.map((t) => `${t.time}: ${t.note}`))));
+    const ind = r.indicators, rep = Object.entries(r.reputation || {});
+    const indicators = [`Source: ${ind.source_ip}`];
+    if (ind.users.length) indicators.push("Users: " + ind.users.join(", "));
+    if (ind.hosts.length) indicators.push("Hosts: " + ind.hosts.join(", "));
+    rep.forEach(([ip, x]) => indicators.push(`Reputation of ${ip}: ${x.reputation}${x.sources && x.sources.length ? " (" + x.sources.join("; ") + ")" : ""}`));
+    parts.push(section("Indicators", bullets(indicators)));
+    if (r.mitre.length) parts.push(section("MITRE ATT&CK", bullets(r.mitre)));
+    if (r.ml.factors.length) parts.push(section("Why the model flagged it", bullets(r.ml.factors)));
+    if (r.guardrail_notes.length) parts.push(section("Guardrails", bullets(r.guardrail_notes)));
+  }
+  if (inc.actions.length) parts.push(section("Response", ...inc.actions.map(actionRow)));
+
+  if (inc.trace && inc.trace.length) {
+    const wrap = el("div", "trace");
+    inc.trace.forEach((t) => {
+      const step = el("div", "step");
+      if (t.type === "tool") {
+        step.append(el("strong", "", "Tool: " + t.tool + " "), el("code", "", JSON.stringify(t.input)), el("div", "why", t.output));
+      } else if (t.type === "thought") step.append(el("em", "", t.text));
+      else if (t.type === "verdict") step.append(el("strong", "", "Submitted verdict"));
+      else step.append(el("span", "", t.text || t.type));
+      wrap.append(step);
+    });
+    const d = el("details"); d.append(el("summary", "", `Investigation trace (${inc.trace.length} steps)`), wrap);
+    parts.push(section("How the analyst got here", d));
+  }
+
+  const controls = el("div", "row");
+  [["resolved", "Mark resolved"], ["dismissed", "Dismiss"], ["needs_review", "Needs review"]].forEach(([st, text]) => {
+    if (inc.status === st) return;
+    const b = el("button", "small", text); b.type = "button";
+    b.addEventListener("click", async () => { try { await pPost(`/incidents/${id}/status`, { status: st }); await refreshAll(); await showIncident(id); } catch (e) { if (!(e instanceof SignedOut)) setPStatus(e.message, "err"); } });
+    controls.append(b);
+  });
+  if (r) {
+    const a = el("a", "", "Download report (.md)"); a.href = `/api/platform/incidents/${id}/report.md`; a.style.alignSelf = "center";
+    controls.append(a);
+  }
+  parts.push(controls);
+  box.replaceChildren(...parts);
+}
+
+async function refreshAll() { await Promise.all([refreshOverview(), refreshIncidents(), refreshApprovals()]); }
+
+$("#p-filter").addEventListener("change", refreshIncidents);
+
+$("#p-demo").addEventListener("click", () => pRun("Loading the demo environment", async () => {
+  let r;
+  try { r = await pPost("/demo"); }
+  catch (e) {
+    if (!/already has data/.test(e.message)) throw e;
+    if (!confirm("This replaces all events, incidents and the model in your account with simulated data. Continue?")) { setPStatus(""); return; }
+    r = await pPost("/demo?reset=true");
+  }
+  P.since = r.since; P.selected = null;
+  $("#p-detail").replaceChildren(el("p", "empty", "Select an incident to see the investigation."));
+  setPStatus(`Loaded ${fmt(r.history_events, 0)} normal events and ${fmt(r.live_events, 0)} live events. Running detection…`);
+  await detectLoop(`since=${r.since}`);
+}));
+
+$("#p-run").addEventListener("click", () => pRun("Detecting and investigating", async () => {
+  await detectLoop(P.since ? `since=${P.since}` : "hours=24");
+}));
+
+async function detectLoop(query) {
+  let r = await pPost("/run?" + query), guard = 0;
+  while (r.remaining > 0 && guard++ < 15) {
+    setPStatus(`Investigated ${r.investigated.length}; ${r.remaining} to go…`);
+    await refreshAll();
+    r = await pPost("/run?" + query);
+  }
+  await refreshAll();
+  const c = (await pApi("/overview")).incidents || {};
+  setPStatus(`Done. ${c.confirmed || 0} confirmed, ${c.needs_review || 0} need review, ${c.dismissed || 0} dismissed as false positives.`, "ok");
+}
+
+$("#p-train").addEventListener("click", () => pRun("Training the baseline", async () => {
+  const m = await pPost("/train" + (P.since ? "?before=" + P.since : ""));
+  await refreshAll();
+  setPStatus(`Baseline trained on ${fmt((m.windows || m.n_windows), 0)} activity windows.`, "ok");
+}));
+
+$("#p-reset").addEventListener("click", () => pRun("Deleting data", async () => {
+  if (!confirm("Delete all events, incidents, actions and the trained model for this account? Settings and tokens are kept.")) { setPStatus(""); return; }
+  await pPost("/reset?confirm=true");
+  P.selected = null; P.since = null;
+  $("#p-detail").replaceChildren(el("p", "empty", "Select an incident to see the investigation."));
+  await refreshAll();
+  setPStatus("All data deleted.", "ok");
+}));
+
+/* tokens and settings */
+async function refreshTokens() {
+  const r = await pApi("/tokens");
+  $("#p-tokens").replaceChildren(...(r.tokens.length ? r.tokens.map((t) => {
+    const row = el("div", "action");
+    const what = el("div", "what"); what.append(el("strong", "", t.label || "(unnamed)"), el("div", "why", `${t.prefix || ""}… · created ${when(t.created_at)}${t.last_used ? " · last used " + when(t.last_used) : " · never used"}`));
+    const del = el("button", "small", "Revoke"); del.type = "button";
+    del.addEventListener("click", async () => { if (!confirm("Revoke this token? Shippers using it will stop working.")) return; await pApi("/tokens/" + t.id, { method: "DELETE" }); refreshTokens(); });
+    row.append(what, del); return row;
+  }) : [el("p", "empty", "No tokens yet.")]));
+}
+
+$("#p-token-new").addEventListener("click", async () => {
+  try {
+    const t = await pPost("/tokens", { label: $("#p-token-label").value.trim() });
+    $("#p-token-label").value = "";
+    const box = el("div", "newtoken");
+    box.append(el("strong", "", "Copy this token now. It won't be shown again."), el("pre", "code", t.token));
+    $("#p-token-fresh").replaceChildren(box);
+    refreshTokens();
+  } catch (e) { if (!(e instanceof SignedOut)) setPStatus(e.message, "err"); }
+});
+
+function writeHowTo() {
+  const url = location.origin + "/api/ingest";
+  $("#p-howto").textContent =
+`# follow a log file (like tail -F)
+INGEST_TOKEN=lad_... python src/tailer.py --url ${url} /var/log/auth.log
+
+# pipe a stream
+journalctl -f -t sshd | INGEST_TOKEN=lad_... python src/tailer.py --url ${url} -
+
+# or post directly from any system
+curl -X POST ${url} \\
+  -H "Authorization: Bearer lad_..." --data-binary @events.jsonl`;
+}
+
+async function refreshConfig() {
+  const c = await pApi("/config");
+  $("#p-config").value = JSON.stringify(c, null, 2);
+}
+
+$("#p-config-save").addEventListener("click", async () => {
+  let cfg;
+  try { cfg = JSON.parse($("#p-config").value); } catch (_) { $("#p-config-note").textContent = "That isn't valid JSON."; $("#p-config-note").style.color = "var(--warn)"; return; }
+  try {
+    const saved = await pApi("/config", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cfg) });
+    $("#p-config").value = JSON.stringify(saved, null, 2);
+    $("#p-config-note").textContent = "Saved. New settings apply to the next investigation.";
+    $("#p-config-note").style.color = "var(--ok)";
+  } catch (e) { if (!(e instanceof SignedOut)) { $("#p-config-note").textContent = e.message; $("#p-config-note").style.color = "var(--warn)"; } }
+});
+
+let platformLoaded = false;
+async function loadPlatform() {
+  if (platformLoaded) return;
+  platformLoaded = true;
+  writeHowTo();
+  try { await Promise.all([refreshAll(), refreshTokens(), refreshConfig()]); }
+  catch (e) { platformLoaded = false; if (!(e instanceof SignedOut)) setPStatus(e.message, "err"); }
 }
 
 /* ---------- start ---------- */

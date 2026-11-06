@@ -8,6 +8,7 @@ import secrets
 import time
 
 import db
+import netguard
 from detector import ThreatDetector
 
 MAX_EVENTS_PER_ACCOUNT = 50_000
@@ -17,7 +18,8 @@ DEFAULT_CONFIG = {
     "directory": {},
     "known_jobs": [],
     "protected_hosts": [],
-    "thresholds": {"alert": 70, "isolate": 90},
+    "thresholds": {"alert": 70, "isolate": 80},
+    "alert_webhook": "",
 }
 
 _model_cache = {}  # account id -> (trained_at, detector)
@@ -86,6 +88,13 @@ def validate_config(cfg):
     if not _is_str_list(protected, 100):
         raise ValueError("protected_hosts must be a list of host names or addresses.")
     out["protected_hosts"] = protected
+
+    webhook = cfg.get("alert_webhook", "")
+    if webhook:
+        problem = netguard.check_webhook_url(webhook)
+        if problem:
+            raise ValueError(problem)
+    out["alert_webhook"] = webhook or ""
 
     thresholds = cfg.get("thresholds", {})
     if not isinstance(thresholds, dict):
@@ -163,6 +172,14 @@ def events_in(account_id, start, end, sources=None, limit=20_000):
         params += sources
     sql += " ORDER BY ts ASC LIMIT ?"
     return db.run(sql, params + [limit], fetch="all")
+
+
+def recent_events(account_id, limit=50):
+    """The newest events first (for showing that ingestion is working)."""
+    return db.run(
+        f"SELECT {_EVENT_COLUMNS} FROM events WHERE account_id = ? ORDER BY ts DESC LIMIT ?",
+        (account_id, min(max(int(limit), 1), 200)), fetch="all",
+    )
 
 
 def all_events(account_id, limit=MAX_EVENTS_PER_ACCOUNT):
@@ -331,6 +348,14 @@ def save_investigation(account_id, incident_id, status, severity, verdict, repor
         (time.time(), status, severity, json.dumps(verdict), json.dumps(report), json.dumps(trace),
          mode, account_id, incident_id),
     )
+
+
+def set_status(account_id, incident_id, status):
+    """Analyst override of an incident's status. Returns False if there is no such incident."""
+    return db.run(
+        "UPDATE incidents SET status = ?, updated_at = ? WHERE account_id = ? AND id = ?",
+        (status, time.time(), account_id, incident_id), fetch="count",
+    ) > 0
 
 
 def list_incidents(account_id, status=None, limit=100):
