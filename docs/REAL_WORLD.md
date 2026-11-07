@@ -30,6 +30,13 @@ This appends 60 failed SSH logins from `203.0.113.9` and then a success. Within 
 
 **Against a real SSH server you own:** from a second device, try a wrong password a few dozen times (`for i in $(seq 40); do ssh -o PreferredAuthentications=password baduser@your-server; done`). Do not do this against anyone else's machine.
 
+**More attack types** (network-style events, stamped "now"):
+```bash
+python scripts/log_generator.py attack exfil  --file ./auth.log   # large upload to an outside address
+python scripts/log_generator.py attack beacon --file ./auth.log   # regular check-ins to an outside server
+```
+Run `python scripts/log_generator.py normal --file ./auth.log --hours 48` first if you want its matching baseline.
+
 ## 4. What approving does
 By default approval is a dry run: it is recorded but nothing is blocked. To act for real, set `RESPONSE_WEBHOOK_URL` (and `RESPONSE_WEBHOOK_TOKEN`) on the server to an endpoint of yours that talks to your firewall or EDR. Every approval posts `{action, target, incident}` there.
 
