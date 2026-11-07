@@ -85,3 +85,24 @@ def test_ocsvm_flags_injected_attacks():
     scores = score_predictions(df["label"], flagged, risk)
     assert scores["recall"] >= 0.9
     assert scores["roc_auc"] >= 0.95
+
+
+def test_autoencoder_scores_attacks_higher():
+    from extra_models import AutoencoderDetector
+
+    df = generate(rows=600, attack_fraction=0.05)
+    normal = df[df["label"] == 0][FEATURES]
+    ae = AutoencoderDetector(contamination=0.05, max_iter=30).fit(normal)
+    scores = score_predictions(df["label"], ae.predict(df[FEATURES]), ae.score(df[FEATURES]))
+    assert scores["roc_auc"] >= 0.9
+
+
+def test_random_forest_references():
+    from extra_models import random_forest_cv_scores, random_forest_scores
+
+    df = generate(rows=600, attack_fraction=0.1)
+    X, y = df[FEATURES].to_numpy(), df["label"].to_numpy()
+    flagged, proba = random_forest_scores(X[:400], y[:400], X[400:], n_estimators=30)
+    assert score_predictions(y[400:], flagged, proba)["roc_auc"] >= 0.9
+    flagged, proba = random_forest_cv_scores(X, y, folds=3, n_estimators=30)
+    assert len(proba) == len(y) and score_predictions(y, flagged, proba)["roc_auc"] >= 0.9

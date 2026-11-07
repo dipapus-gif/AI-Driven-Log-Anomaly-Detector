@@ -5,8 +5,12 @@ then score KDDTest+, which contains normal traffic plus attacks (including
 attack types that never appear in training). Labels are used only to measure
 results, never to train.
 
-Two detectors (Isolation Forest, One-Class SVM) are compared across four
-feature sets. Writes results/nsl_kdd_results.json and results/nsl_kdd_roc.png.
+Four unsupervised-or-reference detectors are compared across four feature sets:
+Isolation Forest, One-Class SVM, an autoencoder (all trained on normal traffic only),
+and a supervised Random Forest as a reference (trained WITH labels): once on KDDTrain+
+and scored on KDDTest+ like the others, and once cross-validated inside KDDTrain+, the
+optimistic ceiling when every attack type has been seen. Writes
+results/nsl_kdd_results.json and results/nsl_kdd_roc.png.
 
 Usage:
     python src/download_nsl_kdd.py
@@ -32,6 +36,11 @@ from sklearn.preprocessing import StandardScaler  # noqa: E402
 from sklearn.svm import OneClassSVM  # noqa: E402
 
 from engine import FEATURES, LogAnomalyEngine, select_features  # noqa: E402
+from extra_models import (  # noqa: E402
+    AutoencoderDetector,
+    random_forest_cv_scores,
+    random_forest_scores,
+)
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -51,7 +60,14 @@ NSL_KDD_COLUMNS = [
 CATEGORICAL = ["protocol_type", "service", "flag"]
 NUMERIC_FEATURES = [c for c in NSL_KDD_COLUMNS[:41] if c not in CATEGORICAL]
 
-DETECTORS = {"isolation_forest": "Isolation Forest", "ocsvm": "One-Class SVM"}
+DETECTORS = {
+    "isolation_forest": "Isolation Forest",
+    "ocsvm": "One-Class SVM",
+    "autoencoder": "Autoencoder",
+    "random_forest": "Random Forest (supervised)",
+    "random_forest_cv": "Random Forest (supervised, cross-validated ceiling)",
+}
+UNSUPERVISED = ("isolation_forest", "ocsvm", "autoencoder")
 FEATURE_SET_LABELS = {
     "mapped4": "4 mapped features",
     "numeric38": "38 numeric features",
@@ -156,11 +172,31 @@ def run_ocsvm(features, train_normal, test_df, nu, n_train, seed=42):
     return flagged, -decision  # higher = more anomalous
 
 
+def run_autoencoder(features, train_normal, test_df, contamination):
+    ae = AutoencoderDetector(contamination=contamination).fit(select_features(train_normal, features).values)
+    X = select_features(test_df, features).values
+    return ae.predict(X), ae.score(X)
+
+
+def run_random_forest(features, train_df, test_df):
+    return random_forest_scores(
+        select_features(train_df, features).values, train_df["label"].values,
+        select_features(test_df, features).values,
+    )
+
+
+def run_random_forest_cv(features, train_df):
+    flagged, proba = random_forest_cv_scores(select_features(train_df, features).values, train_df["label"].values)
+    return flagged, proba
+
+
 def plot_roc(curves, results, out_path):
     """2x2 small multiples (one panel per feature set), one color per detector."""
     surface, ink, ink2, muted = "#fcfcfb", "#0b0b0b", "#52514e", "#898781"
     grid, axis_c = "#e1e0d9", "#c3c2b7"
-    colors = {"isolation_forest": "#2a78d6", "ocsvm": "#eb6834"}
+    colors = {"isolation_forest": "#2a78d6", "ocsvm": "#eb6834", "autoencoder": "#1f9d6b",
+              "random_forest": "#6d6a64", "random_forest_cv": "#b9b6ac"}
+    styles = {"random_forest": "--", "random_forest_cv": ":"}
 
     fig, axes = plt.subplots(2, 2, figsize=(9.2, 8.6), sharex=True, sharey=True)
     fig.patch.set_facecolor(surface)
@@ -178,9 +214,12 @@ def plot_roc(curves, results, out_path):
                 continue
             fpr, tpr = curves[(det, fs)]
             r = results[det][fs]
+            short = label.split(" (")[0] + (" [ref]" if det.startswith("random_forest") else "")
+            if det == "random_forest_cv":
+                short = "RF ceiling (CV)"
             ax.plot(
-                fpr, tpr, color=colors[det], linewidth=1.8, zorder=2,
-                label=f"{label}  (AUC {r['roc_auc']:.2f})",
+                fpr, tpr, color=colors[det], linewidth=1.8, zorder=2, linestyle=styles.get(det, "-"),
+                label=f"{short}  (AUC {r['roc_auc']:.2f})",
             )
             # operating point at the detector's chosen threshold
             op_fpr = r["fp"] / (r["fp"] + r["tn"])
@@ -195,7 +234,7 @@ def plot_roc(curves, results, out_path):
         )
         ax.set_xlim(0, 1)
         ax.set_ylim(0, 1.02)
-        legend = ax.legend(loc="lower right", frameon=False, fontsize=9)
+        legend = ax.legend(loc="lower right", frameon=False, fontsize=8)
         for text in legend.get_texts():
             text.set_color(ink2)
     for ax in axes[1]:
@@ -209,8 +248,8 @@ def plot_roc(curves, results, out_path):
     )
     fig.text(
         0.065, 0.015,
-        "Trained on normal traffic only. Dots mark each detector's chosen threshold; "
-        "the gray diagonal is chance.",
+        "Isolation Forest, One-Class SVM and Autoencoder train on normal traffic only. Dashed and dotted gray "
+        "lines are supervised references that see labels.",
         fontsize=8.5, color=muted, ha="left",
     )
     fig.tight_layout(rect=(0.02, 0.04, 1, 0.96))
@@ -251,6 +290,7 @@ def main():
     parser.add_argument("--ocsvm-rows", type=int, default=10000,
                         help="Normal training rows sampled for the One-Class SVM")
     parser.add_argument("--no-ocsvm", action="store_true", help="Skip the One-Class SVM")
+    parser.add_argument("--no-extra", action="store_true", help="Skip the autoencoder and Random Forest references")
     parser.add_argument("--model-dir", default=os.path.join(PROJECT_ROOT, "models"))
     parser.add_argument("--out", default=os.path.join(results_dir, "nsl_kdd_results.json"))
     parser.add_argument("--plot", default=os.path.join(results_dir, "nsl_kdd_roc.png"))
@@ -275,24 +315,34 @@ def main():
     )
 
     detectors = ["isolation_forest"] + ([] if args.no_ocsvm else ["ocsvm"])
+    if not args.no_extra:
+        detectors += ["autoencoder", "random_forest", "random_forest_cv"]
     results = {det: {} for det in detectors}
     curves = {}
     for det in detectors:
         for fs, feats in feature_sets.items():
-            print(f"[*] {DETECTORS[det]} on {fs} ({len(feats)} features)")
+            print(f"[*] {DETECTORS[det]} on {fs} ({len(feats)} features)", flush=True)
             if det == "isolation_forest":
                 flagged, risk = run_isolation_forest(
                     fs, feats, train_normal, test_df, args.contamination, args.model_dir
                 )
-            else:
+            elif det == "ocsvm":
                 flagged, risk = run_ocsvm(
                     feats, train_normal, test_df, args.contamination, args.ocsvm_rows
                 )
-            res = score_predictions(test_df["label"], flagged, risk)
+            elif det == "autoencoder":
+                flagged, risk = run_autoencoder(feats, train_normal, test_df, args.contamination)
+            elif det == "random_forest":
+                flagged, risk = run_random_forest(feats, train_df, test_df)
+            else:  # random_forest_cv: scored on held-out folds of the TRAIN file, not the test file
+                flagged, risk = run_random_forest_cv(feats, train_df)
+            truth = train_df["label"] if det == "random_forest_cv" else test_df["label"]
+            scored_df = train_df if det == "random_forest_cv" else test_df
+            res = score_predictions(truth, flagged, risk)
             res["n_features"] = len(feats)
-            res["per_attack_recall"] = per_attack_recall(test_df, flagged)
+            res["per_attack_recall"] = per_attack_recall(scored_df, flagged)
             results[det][fs] = res
-            fpr, tpr, _ = roc_curve(test_df["label"], risk)
+            fpr, tpr, _ = roc_curve(truth, risk)
             curves[(det, fs)] = (fpr, tpr)
 
     print_summary(results)

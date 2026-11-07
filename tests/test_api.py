@@ -98,5 +98,5 @@ def test_sample_and_benchmark(client):
     assert sample.headers["content-type"].startswith("text/csv")
     assert sample.text.startswith("duration,")
     bench = client.get("/api/benchmark").json()
-    assert len(bench["table"]) == 8  # 4 feature sets x 2 detectors
+    assert len(bench["table"]) == 20  # 4 feature sets x 5 detectors
     assert client.get("/api/benchmark/roc.png").headers["content-type"] == "image/png"

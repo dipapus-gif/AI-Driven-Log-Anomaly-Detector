@@ -23,7 +23,13 @@ CONFIG_LABELS = {
     "numeric38_protocol": "38 numeric + protocol",
     "numeric38_all_cat": "38 numeric + protocol, flag, service",
 }
-MODEL_LABELS = {"isolation_forest": "Isolation Forest", "ocsvm": "One-Class SVM"}
+MODEL_LABELS = {
+    "isolation_forest": "Isolation Forest",
+    "ocsvm": "One-Class SVM",
+    "autoencoder": "Autoencoder",
+    "random_forest": "Random Forest (supervised, reference)",
+    "random_forest_cv": "Random Forest (supervised, CV ceiling)",
+}
 
 
 class InputError(ValueError):

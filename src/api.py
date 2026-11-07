@@ -319,7 +319,7 @@ def sample(rows: int = 500):
 
 @app.get("/api/benchmark", dependencies=[Depends(require_user)])
 def benchmark():
-    """The saved NSL-KDD benchmark: Isolation Forest vs One-Class SVM."""
+    """The saved NSL-KDD benchmark: detectors plus the supervised Random Forest reference."""
     results = load_benchmark()
     if results is None:
         raise HTTPException(404, "No benchmark results found. Run src/evaluate.py first.")

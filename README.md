@@ -138,7 +138,7 @@ The interface has a public cover page and, after sign-in, a sidebar dashboard: O
 streamlit run src/dashboard.py
 ```
 
-Choose the synthetic demo or upload your own CSVs in the sidebar, then press **Train & analyze**. The Detection tab shows metrics, the risk score distribution with the flagging threshold, and a downloadable table of flagged sessions. The Benchmark tab compares Isolation Forest and the One-Class SVM on NSL-KDD.
+Choose the synthetic demo or upload your own CSVs in the sidebar, then press **Train & analyze**. The Detection tab shows metrics, the risk score distribution with the flagging threshold, and a downloadable table of flagged sessions. The Benchmark tab compares the detectors (Isolation Forest, One-Class SVM, autoencoder, and the supervised Random Forest reference) on NSL-KDD.
 
 ## How it works
 
@@ -151,7 +151,12 @@ Choose the synthetic demo or upload your own CSVs in the sidebar, then press **T
 
 **Protocol.** Each detector is trained only on the 67,343 normal connections in `KDDTrain+`, then scored on `KDDTest+` (22,544 connections: 9,711 normal and 12,833 attacks, including attack types that never appear in training). Labels are used only to measure results, never to train.
 
-**Detectors.** Isolation Forest (`contamination=0.05`, trained on all 67,343 normal rows) and a One-Class SVM with an RBF kernel (`nu=0.05`, trained on a random 10,000-row sample of the normal rows because kernel SVMs scale poorly).
+**Detectors.**
+
+- Isolation Forest (`contamination=0.05`, trained on all 67,343 normal rows).
+- One-Class SVM with an RBF kernel (`nu=0.05`, trained on a random 10,000-row sample of the normal rows because kernel SVMs scale poorly).
+- **Autoencoder** (unsupervised, `src/extra_models.py`): a scikit-learn `MLPRegressor` (hidden layers 32-8-32) trained to reconstruct normal rows; reconstruction error is the anomaly score and the threshold is the 95th percentile of training error. Byte-count style columns are log-compressed, then standardized.
+- **Random Forest, supervised reference.** Unlike the three above it is trained with attack labels, so it is a reference, not a like-for-like competitor. Two versions: *train to test*, trained on the labeled `KDDTrain+` and scored on `KDDTest+` (same test as the others); and *cross-validated*, 5-fold CV inside `KDDTrain+` only, where every attack type in the held-out fold also appears in training. The second is the optimistic ceiling for "labels for every attack type are available".
 
 **Feature sets.**
 
@@ -172,21 +177,35 @@ Categories are taken from the training set only, so categories that appear only 
 | One-Class SVM | numeric38 | 0.930 | 0.738 | 0.823 | 0.890 |
 | One-Class SVM | numeric38_protocol | 0.931 | 0.759 | 0.836 | 0.889 |
 | One-Class SVM | numeric38_all_cat | 0.918 | 0.877 | 0.897 | 0.943 |
+| Autoencoder | mapped4 | 0.955 | 0.732 | 0.829 | 0.905 |
+| Autoencoder | numeric38 | 0.954 | 0.782 | 0.860 | 0.960 |
+| Autoencoder | numeric38_protocol | 0.954 | 0.793 | 0.866 | 0.962 |
+| Autoencoder | numeric38_all_cat | 0.923 | 0.889 | 0.906 | 0.941 |
+| Random Forest, supervised (train to test) | mapped4 | 0.931 | 0.617 | 0.742 | 0.921 |
+| Random Forest, supervised (train to test) | numeric38 | 0.968 | 0.609 | 0.748 | 0.958 |
+| Random Forest, supervised (train to test) | numeric38_protocol | 0.965 | 0.603 | 0.742 | 0.962 |
+| Random Forest, supervised (train to test) | numeric38_all_cat | 0.969 | 0.638 | 0.769 | 0.960 |
+| Random Forest, supervised (5-fold CV, ceiling) | mapped4 | 0.979 | 0.962 | 0.971 | 0.997 |
+| Random Forest, supervised (5-fold CV, ceiling) | numeric38 | 0.999 | 0.998 | 0.998 | 1.000 |
+| Random Forest, supervised (5-fold CV, ceiling) | numeric38_protocol | 0.999 | 0.998 | 0.999 | 1.000 |
+| Random Forest, supervised (5-fold CV, ceiling) | numeric38_all_cat | 1.000 | 0.998 | 0.999 | 1.000 |
+
+The CV rows are scored on a different set (`KDDTrain+`, 125,973 rows) than the others (`KDDTest+`), so they are a ceiling, not a head-to-head number.
 
 ![ROC curves on the NSL-KDD test set](results/nsl_kdd_roc.png)
 
 Recall by attack type with the full feature set (`numeric38_all_cat`), for the most common attacks in the test set:
 
-| Attack | Test count | Isolation Forest | One-Class SVM |
-|---|---|---|---|
-| neptune | 4,657 | 1.00 | 1.00 |
-| guess_passwd | 1,231 | 0.02 | 0.98 |
-| mscan | 996 | 0.96 | 0.95 |
-| warezmaster | 944 | 0.06 | 0.54 |
-| apache2 | 737 | 0.93 | 1.00 |
-| satan | 735 | 0.98 | 0.99 |
-| processtable | 685 | 0.38 | 0.84 |
-| smurf | 665 | 0.36 | 1.00 |
+| Attack | Test count | Isolation Forest | One-Class SVM | Autoencoder | Random Forest (train to test) |
+|---|---|---|---|---|---|
+| neptune | 4,657 | 1.00 | 1.00 | 1.00 | 1.00 |
+| guess_passwd | 1,231 | 0.02 | 0.98 | 0.99 | 0.00 |
+| mscan | 996 | 0.96 | 0.95 | 0.95 | 0.35 |
+| warezmaster | 944 | 0.06 | 0.54 | 0.79 | 0.16 |
+| apache2 | 737 | 0.93 | 1.00 | 1.00 | 0.70 |
+| satan | 735 | 0.98 | 0.99 | 0.94 | 1.00 |
+| processtable | 685 | 0.38 | 0.84 | 1.00 | 0.01 |
+| smurf | 665 | 0.36 | 1.00 | 1.00 | 1.00 |
 
 **Reading the results**
 
@@ -197,6 +216,8 @@ Recall by attack type with the full feature set (`numeric38_all_cat`), for the m
 - The recall gains come with more false alarms. With the full feature set the One-Class SVM flags 999 of 9,711 normal connections (10.3%) and Isolation Forest flags 620 (6.4%). Because the two detectors sit at different thresholds, compare ROC AUC (which ignores the threshold) rather than precision or recall.
 - Both detectors do well on flood and scan style attacks (neptune, satan, mscan, apache2) and poorly on attacks that look like ordinary sessions in these statistics, such as warezmaster.
 - NSL-KDD's test set is 57% attacks, far more than real traffic, so precision here would be much lower on a realistic mix. Recall and ROC AUC are the more transferable numbers.
+- **Autoencoder.** It is the best unsupervised detector here on the feature sets without flag/service (F1 0.86 and ROC AUC 0.96 on `numeric38`, versus 0.78 and 0.92 for Isolation Forest), and it lifts even the four-feature set to ROC AUC 0.905. With the full 122 features it is about tied with the One-Class SVM (ROC AUC 0.941 vs 0.943). On `numeric38_all_cat` it flags 949 of 9,711 normal rows (9.8%), so its higher recall also costs false alarms. It was not tuned; architecture and threshold are first guesses.
+- **Supervised reference.** On the same train-to-test split the Random Forest does not beat the unsupervised detectors on F1 (0.74 to 0.77 vs up to 0.91). It ranks traffic well (ROC AUC about 0.96) with few false alarms (258 of 9,711 normal rows flagged), but it misses attack types it was not shown: guess_passwd recall 0.00, processtable 0.01. `KDDTest+` contains attack types absent from `KDDTrain+`, which is where a supervised model is weakest. When every attack type is represented in training (the 5-fold CV rows) it reaches F1 about 0.999. That is the ceiling, and it also shows `KDDTrain+` alone is easy to fit; it does not say how a labeled model would do on future unseen attacks.
 - Results come from one run with a fixed random seed. Variation across seeds was not measured, and the One-Class SVM was trained on a 10,000-row subsample while Isolation Forest used all normal rows.
 
 Dataset: Tavallaee, Bagheri, Lu, Ghorbani, "A Detailed Analysis of the KDD CUP 99 Data Set", IEEE CISDA 2009 (Canadian Institute for Cybersecurity, University of New Brunswick). The download script fetches it from a public GitHub mirror.
