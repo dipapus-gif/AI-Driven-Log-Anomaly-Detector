@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI-Driven Log Anomaly Detector | Project</title>
+<style>
+:root{--bg:#fff;--ink:#0f1b2d;--mut:#55627a;--line:#dfe5ee;--card:#f6f8fb;--acc:#1f5fd6}
+@media(prefers-color-scheme:dark){:root{--bg:#0b1220;--ink:#e8eefb;--mut:#9aa9c4;--line:#22304a;--card:#111b2e;--acc:#6aa2ff}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+main{max-width:960px;margin:0 auto;padding:40px 16px 64px}
+h1{font-size:2rem;margin:0 0 6px}h2{margin:44px 0 12px;font-size:1.35rem}p.lead{font-size:1.1rem;color:var(--mut);margin:0 0 18px}
+a{color:var(--acc)}.tags{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}.tags span{border:1px solid var(--line);border-radius:99px;padding:2px 12px;font-size:.85rem;color:var(--mut)}
+.btns a{display:inline-block;margin:6px 8px 0 0;padding:9px 16px;border-radius:8px;border:1px solid var(--acc);text-decoration:none;font-weight:600}.btns a.p{background:var(--acc);color:#fff}
+img{width:100%;height:auto;border:1px solid var(--line);border-radius:10px;display:block}figure{margin:16px 0}figcaption{font-size:.9rem;color:var(--mut);margin-top:6px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}.card h3{margin:0 0 4px;font-size:1rem}.card p{margin:0;color:var(--mut);font-size:.95rem}
+.scroll{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:.92rem}th,td{border-bottom:1px solid var(--line);padding:8px 10px;text-align:left;white-space:nowrap}th{color:var(--mut);font-weight:600}td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+small{color:var(--mut)}
+</style></head><body><main>
+<h1>AI-Driven Log Anomaly Detector</h1>
+<p class="lead">From a machine-learning notebook to an agentic threat detection and response platform: it learns what normal looks like for your logs, flags what doesn't fit, investigates it, and proposes a response that a human approves.</p>
+<div class="tags"><span>Python</span><span>FastAPI</span><span>scikit-learn</span><span>Postgres (Neon)</span><span>Claude API</span><span>Vercel</span><span>Electron</span></div>
+<div class="btns"><a class="p" href="https://ai-log-anomaly-detector.vercel.app" target="_blank" rel="noopener">Live demo</a><a href="https://github.com/dipapus-gif/ai-driven-log-anomaly-detector" target="_blank" rel="noopener">Source on GitHub</a></div>
+
+<figure><img src="img/landing.jpg" alt="Landing page with an animated network backdrop" loading="lazy"><figcaption>Cover page with a live network backdrop showing a threat crossing the network and being contained.</figcaption></figure>
+
+<h2>What it does</h2>
+<div class="grid">
+<div class="card"><h3>Detect</h3><p>Groups events into time windows per source, builds 15 behavioural features (failed-login ratio, off-hours activity, port spread, byte volume) and scores them with an Isolation Forest trained on your own baseline.</p></div>
+<div class="card"><h3>Investigate</h3><p>An analyst agent (Claude, with a rules fallback) pulls events, checks IP reputation, maps findings to MITRE ATT&amp;CK and writes a verdict with evidence and a timeline.</p></div>
+<div class="card"><h3>Respond</h3><p>Proposes actions such as blocking an IP or disabling an account. Nothing runs until an analyst approves it; webhooks are guarded against SSRF.</p></div>
+<div class="card"><h3>Ingest</h3><p>A Linux log shipper tails auth logs and posts them with a per-account token. Each account's data is isolated.</p></div>
+<div class="card"><h3>Accounts</h3><p>Salted scrypt passwords, signed HttpOnly sessions, rate limiting, email verification and password reset (single-use hashed tokens, sessions revoked on reset).</p></div>
+<div class="card"><h3>Desktop</h3><p>An Electron wrapper that connects to your deployment.</p></div>
+</div>
+<figure><img src="img/dashboard.jpg" alt="Security overview dashboard" loading="lazy"><figcaption>Overview dashboard: alerts by severity, event volume, top sources and MITRE techniques.</figcaption></figure>
+<figure><img src="img/incidents.jpg" alt="Incident investigation detail" loading="lazy"><figcaption>An investigated incident: an SSH brute force that ended in a successful login, with evidence, timeline, ATT&amp;CK mapping and the features that drove the model score. Demo data.</figcaption></figure>
+
+<h2>Benchmarking the models</h2>
+<p>I evaluated the detectors on NSL-KDD with a strict protocol: unsupervised models train on normal traffic only, and are tested on <code>KDDTest+</code> (22,544 connections, 57% attacks, including attack types never seen in training). Labels are used only to score. Two reference points use labels: a supervised Random Forest trained on the labeled training set, and the same forest cross-validated as an upper bound.</p>
+<div class="scroll"><table>
+<tr><th>Detector</th><th class="n">F1</th><th class="n">ROC AUC</th><th>Notes</th></tr>
+<tr><td>Isolation Forest</td><td class="n">0.779</td><td class="n">0.924</td><td>Used in the live platform</td></tr>
+<tr><td>One-Class SVM</td><td class="n">0.823</td><td class="n">0.890</td><td>10,000-row training sample</td></tr>
+<tr><td>Autoencoder (new)</td><td class="n">0.860</td><td class="n">0.960</td><td>Best unsupervised model on these features</td></tr>
+<tr><td>Random Forest, supervised</td><td class="n">0.748</td><td class="n">0.958</td><td>Misses attack types it never saw</td></tr>
+<tr><td>Random Forest, cross-validated</td><td class="n">0.998</td><td class="n">1.000</td><td>Ceiling when every attack type is labeled</td></tr>
+</table></div>
+<p><small>38 numeric features, single run with a fixed seed, precision/recall/F1 for the attack class. The cross-validated row is scored on the training file, so it is a ceiling and not directly comparable.</small></p>
+<figure><img src="img/roc.jpg" alt="ROC curves for each detector on NSL-KDD" loading="lazy"><figcaption>ROC curves on the NSL-KDD test set.</figcaption></figure>
+<h3>What I learned</h3>
+<ul>
+<li>A reconstruction-error autoencoder beat Isolation Forest (ROC AUC 0.96 vs 0.92) with no labels, and recovered attack types the others missed, such as password guessing and process-table floods.</li>
+<li>The supervised forest scored below the unsupervised models on F1 on the real test split: it ranks well but misses unseen attack types. Cross-validation, where every attack type appears in training, reaches 0.998. The gap between the two is the practical argument for anomaly detection.</li>
+<li>Choosing features mattered more than choosing the model: the four-feature version caught under a third of attacks; 38 features roughly doubled recall.</li>
+<li>Caveat: NSL-KDD is old and not representative of modern traffic, and these are single-seed results. The autoencoder is a benchmark result only; the live platform still uses Isolation Forest.</li>
+</ul>
+
+<h2>Engineering notes</h2>
+<ul>
+<li>Serverless on Vercel with Neon Postgres; one query layer that also runs on SQLite, with the test suite (200 tests) running against both.</li>
+<li>Fail-closed auth: no secret means no access. Reset links are single-use, stored as hashes, and confirmed with a POST so mail scanners cannot consume them.</li>
+<li>Verified end to end on Linux: log shipper, baseline, simulated SSH attack, incident, human approval.</li>
+</ul>
+</main></body></html>
