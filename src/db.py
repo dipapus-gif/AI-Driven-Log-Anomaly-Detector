@@ -72,9 +72,34 @@ def _schema(postgres: bool):
         f"""CREATE TABLE IF NOT EXISTS models (
             account_id BIGINT PRIMARY KEY, trained_at DOUBLE PRECISION NOT NULL,
             n_windows INTEGER, blob {blob} NOT NULL, meta TEXT)""",
+        f"""CREATE TABLE IF NOT EXISTS email_tokens (
+            id {pk}, user_id BIGINT NOT NULL, kind TEXT NOT NULL, token_hash TEXT NOT NULL UNIQUE,
+            expires_at DOUBLE PRECISION NOT NULL, used_at DOUBLE PRECISION,
+            created_at DOUBLE PRECISION NOT NULL)""",
+        "CREATE INDEX IF NOT EXISTS idx_email_tokens_user ON email_tokens (user_id, kind)",
         """CREATE TABLE IF NOT EXISTS account_config (
             account_id BIGINT PRIMARY KEY, config TEXT NOT NULL)""",
     ]
+
+
+_NEW_USER_COLUMNS = [
+    ("email", "TEXT"),
+    ("email_verified", "INTEGER NOT NULL DEFAULT 0"),
+    ("pw_version", "INTEGER NOT NULL DEFAULT 0"),
+]
+
+
+def _migrate(conn, postgres):
+    """Add columns that older databases lack (CREATE TABLE IF NOT EXISTS never alters a table)."""
+    if postgres:
+        for name, decl in _NEW_USER_COLUMNS:
+            conn.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {name} {decl}")
+    else:
+        have = {row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()}
+        for name, decl in _NEW_USER_COLUMNS:
+            if name not in have:
+                conn.execute(f"ALTER TABLE users ADD COLUMN {name} {decl}")
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users (email)")
 
 
 _ready = set()
@@ -98,6 +123,7 @@ def _prepare(conn, postgres, target):
     if target not in _ready:
         for statement in _schema(postgres):
             conn.execute(statement)
+        _migrate(conn, postgres)
         _ready.add(target)
 
 

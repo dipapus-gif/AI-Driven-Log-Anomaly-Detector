@@ -95,7 +95,28 @@ Open http://127.0.0.1:8000, create an account, and click **Run demo** to try it 
 | `SIGNUP_ENABLED=0` | Closes sign-ups. Existing accounts can still sign in. |
 | `AUTH_DISABLED=1` | Turns login off. Local development only. |
 
-Passwords are stored only as salted scrypt hashes. Sessions are signed, HttpOnly cookies that last 8 hours. Failed logins and sign-ups are rate limited per client, per server instance (best effort on serverless). If `AUTH_SECRET` is missing the server refuses all access instead of running open. There is no email verification or password reset yet.
+Passwords are stored only as salted scrypt hashes. Sessions are signed, HttpOnly cookies that last 8 hours. Failed logins and sign-ups are rate limited per client, per server instance (best effort on serverless). If `AUTH_SECRET` is missing the server refuses all access instead of running open. See "Email verification and password reset" below.
+
+### Email verification and password reset
+
+Off until you configure a way to send mail. Once it is on, sign-up requires an email, new accounts must confirm it before using the app, and "Forgot password?" appears on the sign-in form.
+
+| Variable | Purpose |
+|---|---|
+| `EMAIL_FROM` | Sender address, e.g. `Log Detector <noreply@yourdomain.com>`. Required. |
+| `RESEND_API_KEY` | Send through [Resend](https://resend.com). Its test sender only delivers to your own account email; verify a domain to mail other people. |
+| `SMTP_HOST`, `SMTP_PORT` (587), `SMTP_USER`, `SMTP_PASSWORD` | Or send through any SMTP server with STARTTLS (Gmail works with an app password). |
+| `APP_BASE_URL` | Public address used in links, e.g. `https://your-app.vercel.app`. Falls back to `VERCEL_PROJECT_PRODUCTION_URL`. The request's Host header is never used. |
+| `EMAIL_PROVIDER=console` | Development only: prints messages to the server log. Ignored on Vercel. |
+
+How it behaves:
+
+- Links carry a random 32-byte token in the `#` fragment (so it isn't in server logs) and are confirmed with a POST (so mail scanners that pre-open links can't use them up). Only a SHA-256 of each token is stored. Links work once; verification links last 24 hours, reset links 1 hour.
+- "Forgot password" gives the same answer whether or not the address has an account, takes about the same time either way, is rate limited per client and per address, and only mails addresses that were confirmed.
+- A reset signs out every existing session for that account.
+- Accounts that predate this have no email. When email is enabled they are asked to add one (this needs their password) and confirm it.
+- Without a provider configured none of this applies and sign-up works as before.
+
 
 | Endpoint | What it does |
 |---|---|

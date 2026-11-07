@@ -12,6 +12,7 @@ import io
 import json
 import os
 import threading
+import time
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
@@ -22,6 +23,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel
 
 import auth
+import mailer
 import platform_api
 import soc
 import users
@@ -138,6 +140,8 @@ async def _store_unavailable(_request, _exc):
 class User:
     name: str
     id: int
+    email: str = ""
+    email_verified: bool = True
 
 
 def _check_ready():
@@ -147,15 +151,27 @@ def _check_ready():
         raise HTTPException(503, "No account database is configured on this server.")
 
 
-def require_user(request: Request) -> User:
-    """Dependency: the signed-in user, or a 401 (503 if login was never set up)."""
+def current_user(request: Request) -> User:
+    """The signed-in user, or a 401 (503 if login was never set up). Does not check email verification."""
     if auth.auth_disabled():
         return User("local", 0)
     _check_ready()
-    session = auth.read_session(request.cookies.get(auth.COOKIE_NAME))
-    if session is None:
+    claims = auth.session_claims(request.cookies.get(auth.COOKIE_NAME))
+    if claims is None:
         raise HTTPException(401, "Not signed in.")
-    return User(*session)
+    account = users.get_account(claims["id"])
+    # A deleted account, or a session from before the last password change, is signed out.
+    if account is None or account["username"] != claims["u"] or account["pw_version"] != claims["pv"]:
+        raise HTTPException(401, "Not signed in.")
+    return User(account["username"], account["id"], account["email"] or "", account["email_verified"])
+
+
+def require_user(request: Request) -> User:
+    """Dependency for data routes: signed in and, when email is enabled, verified."""
+    user = current_user(request)
+    if mailer.configured() and not user.email_verified:
+        raise HTTPException(403, "Confirm your email address to continue.", headers={"X-Auth-Reason": "email_unverified"})
+    return user
 
 
 def _client_key(request: Request) -> str:
@@ -169,11 +185,11 @@ def _is_https(request: Request) -> bool:
     return request.headers.get("x-forwarded-proto", request.url.scheme) == "https"
 
 
-def _start_session(request: Request, name: str, user_id: int) -> JSONResponse:
+def _start_session(request: Request, name: str, user_id: int, pw_version: int = 0) -> JSONResponse:
     response = JSONResponse({"user": name, "auth_required": True})
     response.set_cookie(
         auth.COOKIE_NAME,
-        auth.make_session(name, user_id),
+        auth.make_session(name, user_id, pw_version=pw_version),
         max_age=auth.SESSION_SECONDS,
         httponly=True,
         samesite="lax",
@@ -194,12 +210,17 @@ def _too_many(wait: int, what: str) -> HTTPException:
 class Credentials(BaseModel):
     username: str
     password: str
+    email: str = ""
 
 
 @app.get("/api/auth/options")
 def auth_options():
     """Public: what the sign-in screen should offer."""
-    return {"signup_enabled": auth.signup_enabled(), "auth_required": not auth.auth_disabled()}
+    return {
+        "signup_enabled": auth.signup_enabled(),
+        "auth_required": not auth.auth_disabled(),
+        "email_enabled": mailer.configured() and not auth.auth_disabled(),
+    }
 
 
 @app.post("/api/signup")
@@ -217,12 +238,21 @@ def signup(creds: Credentials, request: Request):
 
     username = users.normalize_username(creds.username)
     problem = users.validate_signup(username, creds.password)
+    email = users.normalize_email(creds.email) or None
+    if mailer.configured() and not email:
+        problem = problem or "An email address is required."
+    if email and not problem:
+        problem = users.validate_email(email)
     if problem:
         raise HTTPException(400, problem)
     try:
-        user_id = users.create_user(username, auth.hash_password(creds.password))
+        user_id = users.create_user(username, auth.hash_password(creds.password), email)
     except users.UsernameTaken:
         raise HTTPException(409, "That username is taken.")
+    except users.EmailTaken:
+        raise HTTPException(409, "An account with that email already exists.")
+    if email and mailer.configured():
+        _send_verification(user_id, email)
     return _start_session(request, username, user_id)
 
 
@@ -241,7 +271,8 @@ def login(creds: Credentials, request: Request):
         auth.record_hit(key, auth.LOGIN_WINDOW)
         raise HTTPException(401, "Wrong username or password.")
     auth.clear_hits(key)
-    return _start_session(request, username, found[0])
+    account = users.get_account(found[0])
+    return _start_session(request, username, found[0], account["pw_version"] if account else 0)
 
 
 @app.post("/api/logout")
@@ -258,15 +289,175 @@ def health():
 
 
 @app.get("/api/session")
-def session(user: User = Depends(require_user)):
-    """Who is signed in, plus this account's model status."""
+def session(user: User = Depends(current_user)):
+    """Who is signed in, plus this account's model status and email state."""
+    email_on = mailer.configured() and not auth.auth_disabled()
+    if email_on and not user.email_verified:
+        return {
+            "user": user.name, "auth_required": True, "email": user.email,
+            "email_verified": False, "email_required": True, "model": None, "max_rows": MAX_ROWS,
+        }
     engine, rows = _get_model(user.id)
     return {
         "user": user.name,
+        "email": user.email,
+        "email_verified": user.email_verified,
+        "email_required": False,
         "auth_required": not auth.auth_disabled(),
         "model": describe_engine(engine, rows or 0) if engine else None,
         "max_rows": MAX_ROWS,
     }
+
+
+# ---- email verification and password reset --------------------------------
+
+MIN_RESET_SECONDS = 1.5  # forgot-password always takes about this long, so timing reveals nothing
+
+
+def _require_email_enabled():
+    if auth.auth_disabled() or not mailer.configured():
+        raise HTTPException(503, "Email is not set up on this server.")
+
+
+def _send_verification(user_id: int, email: str) -> bool:
+    link = f"{mailer.base_url()}/#/verify/{users.issue_token(user_id, 'verify')}"
+    try:
+        mailer.send_email(email, *mailer.verify_message(link))
+        return True
+    except Exception:
+        return False  # the account exists; the user can press "resend"
+
+
+class TokenBody(BaseModel):
+    token: str
+
+
+class EmailBody(BaseModel):
+    email: str
+
+
+class SetEmailBody(BaseModel):
+    email: str
+    password: str
+
+
+class ResetBody(BaseModel):
+    token: str
+    password: str
+
+
+@app.post("/api/email/verify")
+def verify_email(body: TokenBody, request: Request):
+    """Confirm an address. Reached by a POST from the page (not a GET), so a mail scanner that
+    pre-fetches links can't use up the token."""
+    _require_email_enabled()
+    key = "verify:" + _client_key(request)
+    wait = auth.blocked_for(key, 20, 3600)
+    if wait:
+        raise _too_many(wait, "attempts")
+    auth.record_hit(key, 3600)
+    user_id = users.consume_token(body.token, "verify")
+    if user_id is None:
+        raise HTTPException(400, "This link is invalid or has expired. Request a new one.")
+    users.mark_verified(user_id)
+    return {"ok": True}
+
+
+@app.post("/api/email/resend")
+def resend_verification(user: User = Depends(current_user)):
+    _require_email_enabled()
+    if user.email_verified:
+        return {"ok": True}
+    if not user.email:
+        raise HTTPException(400, "Add an email address first.")
+    key = f"resend:{user.id}"
+    wait = auth.blocked_for(key, auth.MAIL_LIMIT, auth.MAIL_WINDOW)
+    if wait:
+        raise _too_many(wait, "emails requested")
+    auth.record_hit(key, auth.MAIL_WINDOW)
+    if not _send_verification(user.id, user.email):
+        raise HTTPException(502, "The email could not be sent. Try again shortly.")
+    return {"ok": True}
+
+
+@app.post("/api/email/set")
+def set_account_email(body: SetEmailBody, user: User = Depends(current_user)):
+    """Add or change the account's email. Needs the password, so a stolen session can't redirect resets."""
+    _require_email_enabled()
+    found = users.get_user(user.name)
+    key = f"setemail:{user.id}"
+    wait = auth.blocked_for(key, auth.LOGIN_LIMIT, auth.LOGIN_WINDOW)
+    if wait:
+        raise _too_many(wait, "attempts")
+    if not found or not auth.check_password(body.password, found[1]):
+        auth.record_hit(key, auth.LOGIN_WINDOW)
+        raise HTTPException(401, "Wrong password.")
+    email = users.normalize_email(body.email)
+    problem = users.validate_email(email)
+    if problem:
+        raise HTTPException(400, problem)
+    try:
+        users.set_email(user.id, email)
+    except users.EmailTaken:
+        raise HTTPException(409, "An account with that email already exists.")
+    if not _send_verification(user.id, email):
+        raise HTTPException(502, "Saved, but the email could not be sent. Press resend in a moment.")
+    return {"ok": True, "email": email}
+
+
+@app.post("/api/password/forgot")
+def forgot_password(body: EmailBody, request: Request):
+    """Always answers the same way, whether or not the address has an account."""
+    _require_email_enabled()
+    started = time.monotonic()
+    ip_key = "forgot:" + _client_key(request)
+    wait = auth.blocked_for(ip_key, auth.RESET_IP_LIMIT, auth.MAIL_WINDOW)
+    if wait:
+        raise _too_many(wait, "reset requests")
+    auth.record_hit(ip_key, auth.MAIL_WINDOW)
+    email = users.normalize_email(body.email)
+    if not users.validate_email(email):
+        mail_key = "forgot-mail:" + email
+        if not auth.blocked_for(mail_key, auth.MAIL_LIMIT, auth.MAIL_WINDOW):
+            auth.record_hit(mail_key, auth.MAIL_WINDOW)
+            account = users.get_by_email(email)
+            # Only an address the owner has confirmed can receive a reset link.
+            if account and account["email_verified"]:
+                link = f"{mailer.base_url()}/#/reset/{users.issue_token(account['id'], 'reset')}"
+                try:
+                    mailer.send_email(email, *mailer.reset_message(link))
+                except Exception:
+                    pass
+    left = MIN_RESET_SECONDS - (time.monotonic() - started)
+    if left > 0:
+        time.sleep(left)
+    return {"ok": True, "message": "If that address belongs to an account, a reset link is on its way."}
+
+
+@app.post("/api/password/reset")
+def reset_password(body: ResetBody, request: Request):
+    _require_email_enabled()
+    key = "reset:" + _client_key(request)
+    wait = auth.blocked_for(key, 20, 3600)
+    if wait:
+        raise _too_many(wait, "attempts")
+    auth.record_hit(key, 3600)
+    # Check the new password before using up the one-time link, so a typo doesn't waste it.
+    peek = users.peek_token(body.token, "reset")
+    if peek is None:
+        raise HTTPException(400, "This link is invalid or has expired. Request a new one.")
+    account = users.get_account(peek)
+    problem = users.validate_password(body.password, account["username"] if account else "")
+    if problem:
+        raise HTTPException(400, problem)
+    user_id = users.consume_token(body.token, "reset")
+    if user_id is None:
+        raise HTTPException(400, "This link is invalid or has expired. Request a new one.")
+    users.set_password(user_id, auth.hash_password(body.password))
+    users.mark_verified(user_id)  # they just proved they control the address
+    response = JSONResponse({"ok": True})
+    response.delete_cookie(auth.COOKIE_NAME, path="/")
+    return response
 
 
 # ---- the detector ----------------------------------------------------------

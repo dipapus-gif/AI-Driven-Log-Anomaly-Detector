@@ -166,6 +166,9 @@
   .tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; color: var(--muted); padding: 8px 10px; margin-bottom: -1px; font-weight: 600; }
   .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
   .hint { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+  #login-note { margin: 12px 0 0; font-size: 14px; color: var(--ok); }
+  #login-note:empty { display: none; }
+  .auth .box form + .link-row, .auth .link-row { margin: 14px 0 0; text-align: center; font-size: 14px; }
   #login-error { min-height: 22px; margin: 12px 0 0; font-size: 14px; color: var(--warn); }
 
   /* ---------- app shell ---------- */
@@ -409,11 +412,17 @@ journalctl -f -t sshd | python src/tailer.py \
         <label for="password">Password</label>
         <input id="password" name="password" type="password" autocomplete="current-password" required>
         <button id="login-btn" class="primary" type="submit">Sign in</button>
+        <p class="link-row" id="forgot-row" hidden><button type="button" class="link" id="forgot-link">Forgot password?</button></p>
       </form>
       <form id="signup-form" hidden>
         <label for="su-username">Username</label>
         <input id="su-username" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" minlength="3" maxlength="32" required>
         <p class="hint">3 to 32 characters: letters, numbers, dot, dash or underscore.</p>
+        <div id="su-email-row" hidden>
+          <label for="su-email">Email</label>
+          <input id="su-email" name="email" type="email" autocomplete="email" maxlength="254">
+          <p class="hint">We send a confirmation link here, and use it if you forget your password.</p>
+        </div>
         <label for="su-password">Password</label>
         <input id="su-password" name="password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required>
         <p class="hint">At least 10 characters.</p>
@@ -421,6 +430,36 @@ journalctl -f -t sshd | python src/tailer.py \
         <input id="su-confirm" name="confirm" type="password" autocomplete="new-password" required>
         <button id="signup-btn" class="primary" type="submit">Create account</button>
       </form>
+      <form id="forgot-form" hidden>
+        <p class="hint" style="margin-top:0">Enter your account's email and we'll send a link to choose a new password.</p>
+        <label for="fp-email">Email</label>
+        <input id="fp-email" type="email" autocomplete="email" maxlength="254" required>
+        <button id="forgot-btn" class="primary" type="submit">Send reset link</button>
+        <p class="link-row"><button type="button" class="link" data-back-login>Back to sign in</button></p>
+      </form>
+      <form id="reset-form" hidden>
+        <p class="hint" style="margin-top:0">Choose a new password. This signs you out everywhere else.</p>
+        <label for="rp-password">New password</label>
+        <input id="rp-password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required>
+        <label for="rp-confirm">Confirm new password</label>
+        <input id="rp-confirm" type="password" autocomplete="new-password" required>
+        <button id="reset-btn" class="primary" type="submit">Set new password</button>
+      </form>
+      <div id="verify-panel" hidden>
+        <p id="verify-text" style="margin-top:0"></p>
+        <div id="verify-have">
+          <button id="resend-btn" class="primary" type="button">Resend email</button>
+        </div>
+        <form id="addmail-form" hidden>
+          <label for="am-email">Email</label>
+          <input id="am-email" type="email" autocomplete="email" maxlength="254" required>
+          <label for="am-password">Current password</label>
+          <input id="am-password" type="password" autocomplete="current-password" required>
+          <button id="addmail-btn" class="primary" type="submit">Send confirmation</button>
+        </form>
+        <p class="link-row"><button type="button" class="link" id="verify-refresh">I've confirmed it</button> · <button type="button" class="link" id="verify-signout">Sign out</button></p>
+      </div>
+      <p id="login-note" role="status"></p>
       <p id="login-error" role="alert"></p>
     </div>
     <div class="back"><button type="button" class="link" id="back-btn">Back to overview</button></div>
@@ -658,6 +697,10 @@ async function api(path, options) {
     showLanding(path === "/api/session" ? "" : "Your session ended. Please sign in again.");
     throw new SignedOut();
   }
+  if (res.status === 403 && res.headers.get("X-Auth-Reason") === "email_unverified") {
+    showVerifyGate({});
+    throw new SignedOut();
+  }
   if (!res.ok) {
     let detail = body && body.detail;
     if (Array.isArray(detail)) detail = detail.map((d) => d.msg).join("; ");
@@ -836,7 +879,7 @@ const landingField = networkField($("#lp-bg"));
 const authField = networkField($("#auth-bg"));
 
 /* ---------- landing + sign in ---------- */
-let signupEnabled = false;
+let signupEnabled = false, emailEnabled = false;
 const P = { selected: null, since: null, busy: false, stats: null, overview: null, filter: "", page: "overview", timer: null };
 
 function playTrace() {
@@ -882,14 +925,86 @@ function showAuth(mode) {
   setAuthMode(signupEnabled && mode === "signup" ? "signup" : "login");
 }
 function setAuthMode(mode) {
-  const signup = mode === "signup";
-  $("#login-form").hidden = signup;
+  const signup = mode === "signup", login = mode === "login" || signup;
+  $("#login-form").hidden = mode !== "login";
   $("#signup-form").hidden = !signup;
-  $("#tab-login").setAttribute("aria-selected", String(!signup));
+  $("#forgot-form").hidden = mode !== "forgot";
+  $("#reset-form").hidden = mode !== "reset";
+  $("#verify-panel").hidden = mode !== "verify";
+  $(".auth .tabs").hidden = !login;
+  $("#tab-login").setAttribute("aria-selected", String(mode === "login"));
   $("#tab-signup").setAttribute("aria-selected", String(signup));
   $("#login-error").textContent = "";
-  $(signup ? "#su-username" : "#username").focus();
+  $("#login-note").textContent = "";
+  const focus = { login: "#username", signup: "#su-username", forgot: "#fp-email", reset: "#rp-password" }[mode];
+  if (focus) $(focus).focus();
 }
+const post = (path, body) => api(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+let pendingToken = "";
+
+function showVerifyGate(session) {
+  stopPolling();
+  $("#app-view").hidden = true; $("#landing-view").hidden = true; $("#login-view").hidden = false;
+  landingField.stop(); authField.start();
+  setAuthMode("verify");
+  const email = session && session.email;
+  const hasEmail = !!email;
+  $("#verify-text").textContent = hasEmail
+    ? `Confirm your email to continue. We sent a link to ${email}. It expires in 24 hours.`
+    : "Add an email address to continue. We'll send a confirmation link, and use it if you ever need to reset your password.";
+  $("#verify-have").hidden = !hasEmail;
+  $("#addmail-form").hidden = hasEmail;
+  $("#verify-refresh").hidden = !hasEmail;
+}
+async function refreshGate() {
+  try { showApp(await api("/api/session")); } catch (e) { if (!(e instanceof SignedOut)) $("#login-error").textContent = e.message; }
+}
+$("#forgot-link").addEventListener("click", () => setAuthMode("forgot"));
+document.querySelectorAll("[data-back-login]").forEach((b) => b.addEventListener("click", () => setAuthMode("login")));
+$("#forgot-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const btn = $("#forgot-btn"); btn.disabled = true;
+  $("#login-error").textContent = ""; $("#login-note").textContent = "";
+  try {
+    const r = await post("/api/password/forgot", { email: $("#fp-email").value.trim() });
+    $("#login-note").textContent = r.message;
+  } catch (e) { if (!(e instanceof SignedOut)) $("#login-error").textContent = e.message; }
+  finally { btn.disabled = false; }
+});
+$("#reset-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const pw = $("#rp-password").value;
+  if (pw !== $("#rp-confirm").value) { $("#login-error").textContent = "The two passwords don't match."; return; }
+  const btn = $("#reset-btn"); btn.disabled = true;
+  $("#login-error").textContent = "";
+  try {
+    await post("/api/password/reset", { token: pendingToken, password: pw });
+    pendingToken = "";
+    ["#rp-password", "#rp-confirm"].forEach((f) => ($(f).value = ""));
+    setAuthMode("login");
+    $("#login-note").textContent = "Password updated. Sign in with your new password.";
+  } catch (e) { if (!(e instanceof SignedOut)) $("#login-error").textContent = e.message; }
+  finally { btn.disabled = false; }
+});
+$("#resend-btn").addEventListener("click", async () => {
+  $("#login-error").textContent = ""; $("#login-note").textContent = "";
+  try { await post("/api/email/resend", {}); $("#login-note").textContent = "Sent. Check your inbox and spam folder."; }
+  catch (e) { if (!(e instanceof SignedOut)) $("#login-error").textContent = e.message; }
+});
+$("#addmail-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  $("#login-error").textContent = ""; $("#login-note").textContent = "";
+  try {
+    await post("/api/email/set", { email: $("#am-email").value.trim(), password: $("#am-password").value });
+    $("#am-password").value = "";
+    await refreshGate();
+  } catch (e) { if (!(e instanceof SignedOut)) $("#login-error").textContent = e.message; }
+});
+$("#verify-refresh").addEventListener("click", refreshGate);
+$("#verify-signout").addEventListener("click", async () => {
+  try { await api("/api/logout", { method: "POST" }); } catch (_) { /* leave anyway */ }
+  showLanding();
+});
 $$("[data-auth]").forEach((b) => b.addEventListener("click", () => showAuth(b.dataset.auth)));
 $("#back-btn").addEventListener("click", () => { $("#login-view").hidden = true; $("#landing-view").hidden = false; authField.stop(); landingField.start(); playTrace(); });
 $("#tab-login").addEventListener("click", () => setAuthMode("login"));
@@ -917,7 +1032,7 @@ $("#signup-form").addEventListener("submit", async (event) => {
   $("#login-error").textContent = "";
   try {
     await api("/api/signup", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: $("#su-username").value.trim(), password }) });
+      body: JSON.stringify({ username: $("#su-username").value.trim(), password, email: $("#su-email").value.trim() }) });
     ["#su-password", "#su-confirm"].forEach((f) => ($(f).value = ""));
     showApp(await api("/api/session"));
   } catch (e) { if (!(e instanceof SignedOut)) $("#login-error").textContent = e.message; }
@@ -933,6 +1048,7 @@ const TITLES = { overview: "Overview", incidents: "Incidents", approvals: "Appro
 let loaded = false, benchmarkLoaded = false;
 
 function showApp(session) {
+  if (session.email_required) { showVerifyGate(session); return; }
   landingField.stop(); authField.stop();
   $("#landing-view").hidden = true;
   $("#login-view").hidden = true;
@@ -1484,12 +1600,37 @@ async function loadBenchmark() {
   } catch (_) { /* benchmark is optional */ }
 }
 
+async function handleVerifyLink(token) {
+  $("#landing-view").hidden = true; $("#login-view").hidden = false; landingField.stop(); authField.start();
+  setAuthMode("login");
+  try {
+    await post("/api/email/verify", { token });
+    try { showApp(await api("/api/session")); return; } catch (e) { if (!(e instanceof SignedOut)) throw e; }
+    showAuth("login");
+    $("#login-note").textContent = "Email confirmed. Sign in to continue.";
+  } catch (e) { $("#login-error").textContent = e.message; }
+}
+
 /* ---------- start ---------- */
 (async function init() {
   try {
     const options = await api("/api/auth/options");
     signupEnabled = !!options.signup_enabled;
+    emailEnabled = !!options.email_enabled;
   } catch (_) { /* sign-up just stays hidden */ }
+  $("#forgot-row").hidden = !emailEnabled;
+  $("#su-email-row").hidden = !emailEnabled;
+  $("#su-email").required = emailEnabled;
+  // Links from emails carry a one-time token in the #fragment (so it never reaches server logs).
+  const link = (location.hash || "").match(/^#\/(verify|reset)\/([\w-]{20,100})$/);
+  if (link) {
+    history.replaceState(null, "", location.pathname + location.search);
+    if (link[1] === "verify") return handleVerifyLink(link[2]);
+    pendingToken = link[2];
+    $("#landing-view").hidden = true; $("#login-view").hidden = false; landingField.stop(); authField.start();
+    setAuthMode("reset");
+    return;
+  }
   $("#tab-signup").hidden = !signupEnabled;
   ["#lp-signup-top", "#lp-signup-hero", "#lp-signup-bottom"].forEach((s) => ($(s).hidden = !signupEnabled));
   try {
@@ -1499,7 +1640,9 @@ async function loadBenchmark() {
     showLanding(); $("#landing-view").hidden = true; $("#login-view").hidden = false; $("#login-error").textContent = e.message;
   }
 })();
-window.addEventListener("hashchange", () => { if (!$("#app-view").hidden) showPage((location.hash || "").replace("#/", "")); });
+window.addEventListener("hashchange", () => {
+  if (/^#\/(verify|reset)\//.test(location.hash)) { location.reload(); return; } // an emailed link opened in this tab
+  if (!$("#app-view").hidden) showPage((location.hash || "").replace("#/", "")); });
 </script>
 </body>
 </html>

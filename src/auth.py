@@ -28,6 +28,8 @@ _N, _R, _P = 2**14, 8, 1
 
 LOGIN_LIMIT, LOGIN_WINDOW = 5, 5 * 60          # failed logins per client
 SIGNUP_LIMIT, SIGNUP_WINDOW = 5, 60 * 60       # sign-up attempts per client
+MAIL_LIMIT, MAIL_WINDOW = 3, 60 * 60           # emails of one kind per address or account
+RESET_IP_LIMIT = 10                            # password-reset requests per client per hour
 _hits = {}  # key -> (count, window start). Per process, best effort.
 
 
@@ -95,14 +97,20 @@ def _sign(payload: str) -> str:
     return _b64(hmac.new(_secret(), payload.encode(), hashlib.sha256).digest())
 
 
-def make_session(username: str, user_id: int, now=None) -> str:
-    claims = {"u": username, "id": user_id, "exp": int((now or time.time()) + SESSION_SECONDS)}
+def make_session(username: str, user_id: int, now=None, pw_version: int = 0) -> str:
+    claims = {"u": username, "id": user_id, "pv": pw_version, "exp": int((now or time.time()) + SESSION_SECONDS)}
     body = _b64(json.dumps(claims).encode())
     return f"{body}.{_sign(body)}"
 
 
 def read_session(token, now=None):
     """Return (username, user_id) for a valid, unexpired token, otherwise None."""
+    claims = session_claims(token, now)
+    return (claims["u"], claims["id"]) if claims else None
+
+
+def session_claims(token, now=None):
+    """Return {"u", "id", "pv"} for a valid, unexpired token, otherwise None."""
     if not token or not is_configured() or token.count(".") != 1:
         return None
     body, signature = token.split(".")
@@ -112,7 +120,7 @@ def read_session(token, now=None):
         claims = json.loads(_unb64(body))
         if claims["exp"] < (now or time.time()):
             return None
-        return str(claims["u"]), int(claims["id"])
+        return {"u": str(claims["u"]), "id": int(claims["id"]), "pv": int(claims.get("pv", 0))}
     except (ValueError, KeyError, TypeError):
         return None
 
