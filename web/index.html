@@ -77,11 +77,15 @@
   }
 
   /* ---------- landing ---------- */
-  .lp-hero { background: #0a1424; color: #e8eef7; position: relative; overflow: hidden; }
-  .lp-hero::before { content: ""; position: absolute; inset: 0; opacity: .5; pointer-events: none;
-    background-image: linear-gradient(#16263f 1px, transparent 1px), linear-gradient(90deg, #16263f 1px, transparent 1px);
-    background-size: 44px 44px; mask-image: linear-gradient(180deg, #000 0%, transparent 85%); }
+  .lp-hero { color: #e8eef7; position: relative; overflow: hidden; border-bottom: 1px solid #1b2f4f;
+    background: radial-gradient(1100px 620px at 88% -8%, #1a3a6e 0%, transparent 62%),
+                radial-gradient(900px 520px at -6% 112%, #10305a 0%, transparent 60%), #070f1d; }
+  .field { position: absolute; inset: 0; width: 100%; height: 100%; display: block; z-index: 0; }
+  .lp-hero::after { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+    background: linear-gradient(90deg, rgba(7,15,29,.86) 0%, rgba(7,15,29,.5) 48%, rgba(7,15,29,0) 100%),
+                linear-gradient(180deg, rgba(7,15,29,0) 70%, rgba(7,15,29,.6) 100%); }
   .lp-nav, .lp-hero-grid, .lp-sec, .lp-foot { max-width: 1160px; margin: 0 auto; padding-left: 20px; padding-right: 20px; position: relative; }
+  .lp-nav, .lp-hero-grid { z-index: 2; }
   .lp-nav { display: flex; align-items: center; justify-content: space-between; padding-top: 18px; padding-bottom: 18px; gap: 12px; }
   .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -.01em; }
   .brand svg { width: 26px; height: 26px; flex: none; }
@@ -91,12 +95,14 @@
   .lp-hero button.primary { background: #3d7bf0; border-color: #3d7bf0; color: #fff; }
   .lp-hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 520px); gap: 48px; align-items: center; padding-top: 56px; padding-bottom: 88px; }
   @media (max-width: 940px) { .lp-hero-grid { grid-template-columns: 1fr; gap: 36px; padding-top: 28px; padding-bottom: 56px; } }
-  .lp-hero h1 { font-size: clamp(34px, 5.2vw, 56px); line-height: 1.04; letter-spacing: -.03em; font-weight: 700; max-width: 14ch; }
+  .lp-hero h1 { font-size: clamp(36px, 5.6vw, 64px); line-height: 1.02; letter-spacing: -.038em; font-weight: 600; max-width: 13ch; text-wrap: balance; }
   .lp-hero .lede { margin-top: 20px; font-size: 18px; color: #aebcd1; max-width: 52ch; line-height: 1.55; }
   .lp-cta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
   .lp-cta button { padding: 11px 20px; font-size: 15px; }
-  .lp-facts { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 30px; color: #8fa2bd; font-size: 14px; }
-  .trace-card { background: #0f1c31; border: 1px solid #22385a; border-radius: 10px; box-shadow: 0 30px 60px -30px #000; overflow: hidden; }
+  .lp-facts { display: flex; flex-wrap: wrap; gap: 8px 0; margin-top: 34px; color: #9fb1c9; font-size: 14px; }
+  .lp-facts span { padding-right: 18px; margin-right: 18px; border-right: 1px solid #2a4066; }
+  .lp-facts span:last-child { border-right: 0; margin-right: 0; padding-right: 0; }
+  .trace-card { background: rgba(12,24,44,.74); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border: 1px solid rgba(120,160,230,.26); border-radius: 12px; box-shadow: 0 40px 80px -40px #000, 0 0 0 1px rgba(8,16,30,.6), 0 0 60px -20px rgba(61,123,240,.35); overflow: hidden; }
   .trace-bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid #22385a; font-size: 13px; color: #8fa2bd; }
   .trace-body { padding: 16px 16px 14px; min-height: 372px; }
   .trace-title { font-weight: 600; font-size: 16px; color: #f2f6fb; }
@@ -112,6 +118,13 @@
   @media (prefers-reduced-motion: reduce) { .tstep { animation: none; opacity: 1; transform: none; } }
   .trace-note { padding: 9px 14px; border-top: 1px solid #22385a; font-size: 12px; color: #7b8ea9; }
 
+  .lp-nav .actions button { white-space: nowrap; }
+  .lp-nav .brand { white-space: nowrap; }
+  @media (max-width: 560px) {
+    .lp-nav .actions button:not(.theme-btn) { padding: 6px 10px; font-size: 13px; }
+    .lp-nav .brand { font-size: 14px; }
+    .lp-hero::after { background: rgba(7,15,29,.6); }
+  }
   .lp-sec { padding-top: 76px; padding-bottom: 8px; }
   .lp-sec h2 { font-size: clamp(24px, 3.2vw, 34px); letter-spacing: -.02em; line-height: 1.15; max-width: 22ch; font-weight: 700; }
   .lp-sec .intro { color: var(--muted); margin-top: 12px; max-width: 62ch; font-size: 16px; }
@@ -141,8 +154,9 @@
   .lp-foot { padding-top: 64px; padding-bottom: 40px; color: var(--muted); font-size: 13px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
 
   /* ---------- sign in ---------- */
-  #login-view { min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; background: #0a1424; }
-  .auth { width: 100%; max-width: 400px; }
+  #login-view { min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; position: relative; overflow: hidden;
+    background: radial-gradient(900px 520px at 80% -10%, #1a3a6e 0%, transparent 62%), radial-gradient(700px 480px at 0% 110%, #10305a 0%, transparent 60%), #070f1d; }
+  .auth { width: 100%; max-width: 400px; position: relative; z-index: 2; }
   .auth .brand { color: #e8eef7; justify-content: center; margin-bottom: 18px; }
   .auth .box { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 22px; }
   .auth form button[type=submit] { width: 100%; margin-top: 18px; padding: 10px; }
@@ -289,6 +303,7 @@
 <!-- Cover page, shown to signed-out visitors -->
 <div id="landing-view" hidden>
   <div class="lp-hero">
+    <canvas class="field" id="lp-bg" aria-hidden="true"></canvas>
     <div class="lp-nav">
       <div class="brand">
         <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#3d7bf0"/><path d="M5 18h5l3-8 4 13 3-9 2 4h5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -377,6 +392,7 @@ journalctl -f -t sshd | python src/tailer.py \
 
 <!-- Sign in / create account -->
 <div id="login-view" hidden>
+  <canvas class="field" id="auth-bg" aria-hidden="true"></canvas>
   <div class="auth">
     <div class="brand">
       <svg viewBox="0 0 32 32" aria-hidden="true" style="width:26px;height:26px"><rect width="32" height="32" rx="7" fill="#3d7bf0"/><path d="M5 18h5l3-8 4 13 3-9 2 4h5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -660,6 +676,165 @@ function setPStatus(msg, kind = "") {
 }
 function setCsvStatus(msg, kind = "") { const n = $("#csv-status"); n.textContent = msg; n.className = kind; }
 
+
+/* ---------- backdrop: a network with a threat crossing it, then being contained ---------- */
+function networkField(canvas) {
+  const ctx = canvas.getContext("2d");
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let W = 0, H = 0, nodes = [], edges = [], adj = [], packets = [], threat = null, raf = 0, last = 0, running = false, onscreen = true;
+  const rnd = (a, b) => a + Math.random() * (b - a);
+
+  function layout() {
+    const r = canvas.getBoundingClientRect();
+    if (!r.width || !r.height) return false;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = r.width; H = r.height;
+    canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const step = W < 700 ? 64 : 86, rowH = step * 0.86;
+    nodes = [];
+    for (let row = 0, y = -rowH; y < H + rowH; row++, y += rowH) {
+      for (let x = (row % 2 ? step / 2 : 0) - step; x < W + step; x += step) {
+        nodes.push({ x: x + rnd(-step * .27, step * .27), y: y + rnd(-rowH * .27, rowH * .27), r: rnd(.9, 2.1) });
+      }
+    }
+    edges = []; adj = nodes.map(() => []);
+    for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
+      if (Math.hypot(nodes[i].x - nodes[j].x, nodes[i].y - nodes[j].y) < step * 1.22 && Math.random() < .66) {
+        edges.push([i, j]); adj[i].push(j); adj[j].push(i);
+      }
+    }
+    packets = Array.from({ length: Math.min(34, Math.round(nodes.length / 4)) }, () => newPacket());
+    threat = null; phaseAt = 0;
+    return true;
+  }
+  function newPacket() {
+    let a = Math.floor(Math.random() * nodes.length), guard = 0;
+    while (!adj[a].length && guard++ < 30) a = Math.floor(Math.random() * nodes.length);
+    const b = adj[a].length ? adj[a][Math.floor(Math.random() * adj[a].length)] : a;
+    return { a, b, t: Math.random(), v: rnd(.12, .3) };
+  }
+  function path() {
+    const target = nodes.reduce((best, n, i) => Math.hypot(n.x - W * .5, n.y - H * .88) < Math.hypot(nodes[best].x - W * .5, nodes[best].y - H * .88) ? i : best, 0);
+    const sides = nodes.map((n, i) => i).filter((i) => nodes[i].x > W * .9 && nodes[i].y > H * .45);
+    const pool = sides.length ? sides : nodes.map((_, i) => i);
+    const start = pool[Math.floor(Math.random() * pool.length)];
+    const prev = new Map([[start, -1]]), queue = [start];
+    while (queue.length) {
+      const n = queue.shift();
+      if (n === target) break;
+      adj[n].forEach((m) => { if (!prev.has(m)) { prev.set(m, n); queue.push(m); } });
+    }
+    if (!prev.has(target)) return null;
+    const out = [];
+    for (let n = target; n !== -1; n = prev.get(n)) out.unshift(n);
+    const pts = out.map((i) => nodes[i]);
+    const lens = pts.slice(1).map((p, i) => Math.hypot(p.x - pts[i].x, p.y - pts[i].y));
+    return { pts, lens, total: lens.reduce((a, b) => a + b, 0), t0: 0 };
+  }
+  function along(pth, d) {
+    let i = 0;
+    while (i < pth.lens.length - 1 && d > pth.lens[i]) { d -= pth.lens[i]; i++; }
+    const k = Math.min(1, d / (pth.lens[i] || 1)), a = pth.pts[i], b = pth.pts[i + 1];
+    return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, seg: i };
+  }
+
+  let phaseAt = 0;      // seconds into the current threat cycle
+  const TRAVEL = 3.4, HIT = 1.3, HOLD = 2.2, FADE = 1.2, IDLE = 3.2;
+  function drawBase() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(96,146,245,.17)";
+    ctx.beginPath();
+    edges.forEach(([i, j]) => { ctx.moveTo(nodes[i].x, nodes[i].y); ctx.lineTo(nodes[j].x, nodes[j].y); });
+    ctx.stroke();
+    ctx.fillStyle = "rgba(150,185,250,.5)";
+    nodes.forEach((n) => { ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, 6.2832); ctx.fill(); });
+  }
+  function drawPath(pth, upto, stroke, dash) {
+    ctx.save();
+    ctx.strokeStyle = stroke; ctx.lineWidth = 2.2; ctx.setLineDash(dash || []);
+    ctx.beginPath();
+    ctx.moveTo(pth.pts[0].x, pth.pts[0].y);
+    const head = along(pth, upto);
+    for (let i = 1; i <= head.seg; i++) ctx.lineTo(pth.pts[i].x, pth.pts[i].y);
+    ctx.lineTo(head.x, head.y);
+    ctx.stroke();
+    ctx.restore();
+    return head;
+  }
+  function drawThreat(dt) {
+    if (!threat) { if (phaseAt > IDLE) { threat = path(); phaseAt = 0; } return; }
+    const t = phaseAt, end = threat.pts[threat.pts.length - 1];
+    if (t < TRAVEL) {
+      const head = drawPath(threat, threat.total * (t / TRAVEL), "rgba(255,104,92,.85)");
+      ctx.save(); ctx.shadowColor = "rgba(255,90,80,.9)"; ctx.shadowBlur = 14; ctx.fillStyle = "#ff6a5f";
+      ctx.beginPath(); ctx.arc(head.x, head.y, 3.2, 0, 6.2832); ctx.fill(); ctx.restore();
+    } else if (t < TRAVEL + HIT) {
+      const k = (t - TRAVEL) / HIT;
+      drawPath(threat, threat.total, "rgba(255,104,92,.8)");
+      ctx.strokeStyle = `rgba(255,104,92,${.8 * (1 - k)})`; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(end.x, end.y, 6 + k * 40, 0, 6.2832); ctx.stroke();
+      ctx.fillStyle = "#ff6a5f"; ctx.beginPath(); ctx.arc(end.x, end.y, 3.6, 0, 6.2832); ctx.fill();
+    } else if (t < TRAVEL + HIT + HOLD + FADE) {
+      const k = Math.max(0, (t - TRAVEL - HIT - HOLD) / FADE), a = 1 - k;
+      drawPath(threat, threat.total, `rgba(240,170,80,${.75 * a})`, [5, 6]);
+      ctx.strokeStyle = `rgba(240,170,80,${.9 * a})`; ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) { const ang = Math.PI / 3 * i + Math.PI / 6; ctx.lineTo(end.x + 11 * Math.cos(ang), end.y + 11 * Math.sin(ang)); }
+      ctx.closePath(); ctx.stroke();
+    } else { threat = null; phaseAt = 0; }
+  }
+  function frame(now) {
+    raf = requestAnimationFrame(frame);
+    const dt = Math.min(.05, (now - (last || now)) / 1000); last = now;
+    if (!onscreen || document.hidden) return;
+    phaseAt += dt;
+    drawBase();
+    ctx.fillStyle = "rgba(200,222,255,.9)";
+    packets.forEach((p) => {
+      p.t += p.v * dt;
+      if (p.t >= 1) {
+        const from = p.b, opts = adj[from].filter((n) => n !== p.a);
+        p.a = from; p.b = (opts.length ? opts : adj[from])[Math.floor(Math.random() * (opts.length || adj[from].length))] ?? from; p.t = 0;
+      }
+      const A = nodes[p.a], B = nodes[p.b];
+      ctx.beginPath(); ctx.arc(A.x + (B.x - A.x) * p.t, A.y + (B.y - A.y) * p.t, 1.9, 0, 6.2832); ctx.fill();
+    });
+    drawThreat(dt);
+  }
+  function still() {
+    drawBase();
+    const pth = path();
+    if (pth) {
+      drawPath(pth, pth.total, "rgba(240,170,80,.6)", [5, 6]);
+      const end = pth.pts[pth.pts.length - 1];
+      ctx.strokeStyle = "rgba(240,170,80,.85)"; ctx.lineWidth = 1.6; ctx.beginPath();
+      for (let i = 0; i < 6; i++) { const ang = Math.PI / 3 * i + Math.PI / 6; ctx.lineTo(end.x + 11 * Math.cos(ang), end.y + 11 * Math.sin(ang)); }
+      ctx.closePath(); ctx.stroke();
+    }
+  }
+  const io = "IntersectionObserver" in window ? new IntersectionObserver((e) => { onscreen = e[0].isIntersecting; }) : null;
+  let resizeTimer = 0;
+  const ro = "ResizeObserver" in window ? new ResizeObserver(() => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { if (running && layout() && reduce) still(); }, 150);
+  }) : null;
+  return {
+    start() {
+      if (running) return;
+      running = true;
+      if (!layout()) { running = false; return; }
+      if (io) io.observe(canvas);
+      if (ro) ro.observe(canvas);
+      if (reduce) still(); else { last = 0; phaseAt = IDLE - 1; raf = requestAnimationFrame(frame); }
+    },
+    stop() { running = false; cancelAnimationFrame(raf); if (io) io.disconnect(); if (ro) ro.disconnect(); },
+  };
+}
+const landingField = networkField($("#lp-bg"));
+const authField = networkField($("#auth-bg"));
+
 /* ---------- landing + sign in ---------- */
 let signupEnabled = false;
 const P = { selected: null, since: null, busy: false, stats: null, overview: null, filter: "", page: "overview", timer: null };
@@ -691,6 +866,7 @@ function showLanding(message = "") {
   $("#app-view").hidden = true;
   $("#login-view").hidden = true;
   $("#landing-view").hidden = false;
+  authField.stop(); landingField.start();
   P.selected = null; P.since = null; P.stats = null; loaded = false;
   $("#p-token-fresh").replaceChildren();
   ["#password", "#su-password", "#su-confirm"].forEach((f) => ($(f).value = ""));
@@ -702,6 +878,7 @@ function showAuth(mode) {
   $("#landing-view").hidden = true;
   $("#app-view").hidden = true;
   $("#login-view").hidden = false;
+  landingField.stop(); authField.start();
   setAuthMode(signupEnabled && mode === "signup" ? "signup" : "login");
 }
 function setAuthMode(mode) {
@@ -714,7 +891,7 @@ function setAuthMode(mode) {
   $(signup ? "#su-username" : "#username").focus();
 }
 $$("[data-auth]").forEach((b) => b.addEventListener("click", () => showAuth(b.dataset.auth)));
-$("#back-btn").addEventListener("click", () => { $("#login-view").hidden = true; $("#landing-view").hidden = false; playTrace(); });
+$("#back-btn").addEventListener("click", () => { $("#login-view").hidden = true; $("#landing-view").hidden = false; authField.stop(); landingField.start(); playTrace(); });
 $("#tab-login").addEventListener("click", () => setAuthMode("login"));
 $("#tab-signup").addEventListener("click", () => setAuthMode("signup"));
 
@@ -756,6 +933,7 @@ const TITLES = { overview: "Overview", incidents: "Incidents", approvals: "Appro
 let loaded = false, benchmarkLoaded = false;
 
 function showApp(session) {
+  landingField.stop(); authField.stop();
   $("#landing-view").hidden = true;
   $("#login-view").hidden = true;
   $("#app-view").hidden = false;
