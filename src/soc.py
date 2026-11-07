@@ -119,10 +119,16 @@ def detect(account_id, since, until=None):
         existing = store.find_mergeable_incident(account_id, meta["src_ip"], meta["window_start"], MERGE_GAP)
         if existing:
             top = max(float(r), existing["risk_score"])
-            if r > existing["risk_score"]:
+            seen = (store._loads(existing["features"]) or {}).get("meta", {})
+            more = meta["bucket"] == seen.get("bucket") and meta["n_events"] > seen.get("n_events", 0)
+            if r > existing["risk_score"] or more:
                 store.update_incident_evidence(account_id, existing["id"], meta, top, evidence)
             else:
                 store.extend_incident(account_id, existing["id"], top, max(meta["window_end"], existing["window_end"]))
+            # An attack that is still unfolding was investigated on a partial picture. When the same
+            # window has at least doubled since, look again (analyst decisions are never reopened).
+            if more and meta["n_events"] >= 2 * seen.get("n_events", 0) and existing["status"] in ("confirmed", "needs_review"):
+                store.set_status(account_id, existing["id"], "new")
             summary["merged"] += 1
         else:
             try:

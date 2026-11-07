@@ -306,7 +306,7 @@ def _incident_summary(row):
 
 def find_mergeable_incident(account_id, src_ip, window_start, gap):
     return db.run(
-        "SELECT id, risk_score, window_end FROM incidents WHERE account_id = ? AND src_ip = ? "
+        "SELECT id, risk_score, window_end, status, features FROM incidents WHERE account_id = ? AND src_ip = ? "
         "AND window_end >= ? ORDER BY id DESC LIMIT 1",
         (account_id, src_ip, window_start - gap), fetch="one",
     )

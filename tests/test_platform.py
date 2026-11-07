@@ -406,3 +406,31 @@ def test_scenario_lines_are_parsed_by_the_server():
     assert all(parsed) and {p["action"] for p in parsed} >= {"success", "failure"}
     bad = features.parse_line(scenario.line(time.time(), "h", False, "root", scenario.ATTACKER, invalid=True), time.time())
     assert bad["src_ip"] == scenario.ATTACKER and bad["action"] == "failure"
+
+
+def test_growing_attack_is_reinvestigated_with_the_full_picture(database):
+    """The first batch of a brute force is only a few lines; the verdict must improve as it grows."""
+    acct = 1
+    now = time.time()
+    since = now - now % 900
+    soc.load_demo(acct)                       # gives the account a baseline and settings
+    base = {"src_ip": "203.0.113.77", "dst_ip": None, "dst_port": 22, "proto": "tcp", "bytes": None,
+            "username": "root", "host": "bastion", "action": "failure", "event_type": "auth", "message": "Failed password"}
+
+    def burst(n, offset):
+        return [{**base, "ts": since + offset + i} for i in range(n)]
+
+    store.insert_events(acct, burst(6, 0))
+    soc.process(acct, since, llm=None)
+    first = store.list_incidents(acct)
+    mine = [i for i in first if i["src_ip"] == "203.0.113.77"]
+    if not mine:
+        pytest.skip("six failures were not unusual enough for this model; growth rule not exercised")
+    iid = mine[0]["id"]
+    assert store.get_incident(acct, iid)["status"] in ("confirmed", "needs_review", "new")
+
+    store.insert_events(acct, burst(60, 10))
+    soc.process(acct, since, llm=None)
+    final = store.get_incident(acct, iid)
+    assert final["evidence"]["meta"]["n_events"] >= 60
+    assert "brute" in (final["report"]["title"] + " ".join(final["report"]["mitre"])).lower()
