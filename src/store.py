@@ -448,3 +448,57 @@ def delete_account_data(account_id):
     for table in ("events", "incidents", "actions", "models"):
         db.run(f"DELETE FROM {table} WHERE account_id = ?", (account_id,))
     _model_cache.pop(account_id, None)
+
+
+# ---- dashboard statistics --------------------------------------------------
+
+def dashboard_stats(account_id, now=None, hours=24):
+    """Numbers for the overview charts. Time is anchored to the newest event, so a
+    quiet system still shows its most recent activity instead of an empty chart."""
+    hours = min(max(int(hours), 1), 168)
+    newest = db.run("SELECT MAX(ts) AS t FROM events WHERE account_id = ?", (account_id,), fetch="one")["t"]
+    end = float(newest) if newest else (now or time.time())
+    end_hour = (int(end) // 3600 + 1) * 3600
+    start = end_hour - hours * 3600
+    buckets = [{"start": start + i * 3600, "events": 0, "failures": 0, "critical": 0, "high": 0, "medium": 0, "low": 0}
+               for i in range(hours)]
+
+    for e in events_in(account_id, start, end_hour, limit=50_000):
+        b = buckets[min(int((e["ts"] - start) // 3600), hours - 1)]
+        b["events"] += 1
+        if e["action"] == "failure":
+            b["failures"] += 1
+
+    rows = db.run(
+        "SELECT window_start, risk_score, status, severity, src_ip, host, report FROM incidents "
+        "WHERE account_id = ? ORDER BY window_start DESC LIMIT 500", (account_id,), fetch="all")
+    severity, sources, mitre, hosts = {}, {}, {}, {}
+    for r in rows:
+        sev = r["severity"] or "unrated"
+        if start <= r["window_start"] < end_hour:
+            buckets[min(int((r["window_start"] - start) // 3600), hours - 1)][sev if sev in ("critical", "high", "medium", "low") else "medium"] += 1
+        if r["status"] == "dismissed":
+            continue                      # false positives shouldn't dominate "top" lists
+        severity[sev] = severity.get(sev, 0) + 1
+        entry = sources.setdefault(r["src_ip"], {"ip": r["src_ip"], "incidents": 0, "max_risk": 0})
+        entry["incidents"] += 1
+        entry["max_risk"] = max(entry["max_risk"], round(r["risk_score"]))
+        if r["host"]:
+            hosts[r["host"]] = hosts.get(r["host"], 0) + 1
+        report = _loads(r["report"]) or {}
+        for technique in report.get("mitre", []):
+            mitre[technique] = mitre.get(technique, 0) + 1
+
+    def top(d, n=6):
+        return sorted(d.items(), key=lambda kv: -kv[1])[:n]
+
+    types = db.run(
+        "SELECT event_type AS k, COUNT(*) AS n FROM events WHERE account_id = ? AND ts >= ? GROUP BY event_type "
+        "ORDER BY n DESC LIMIT 6", (account_id, start), fetch="all")
+    return {
+        "hours": hours, "from": start, "to": end_hour, "buckets": buckets, "severity": severity,
+        "top_sources": sorted(sources.values(), key=lambda x: (-x["max_risk"], -x["incidents"]))[:6],
+        "mitre": [{"technique": k, "count": v} for k, v in top(mitre)],
+        "hosts": [{"host": k, "count": v} for k, v in top(hosts)],
+        "event_types": [{"type": r["k"] or "other", "count": r["n"]} for r in types],
+    }

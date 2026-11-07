@@ -334,3 +334,75 @@ def test_tailer_stops_on_bad_token():
 def test_tailer_refuses_plain_http_to_remote_hosts():
     with pytest.raises(SystemExit):
         tailer.main(["--url", "http://example.com/api/ingest", "-"])
+
+
+# ---- real-world path: generator -> ingest -> train -> detect ---------------
+
+def test_generated_logs_flow_through_ingest_train_and_detect(alice):
+    import random
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
+    import log_generator as gen
+
+    now = time.time()
+    rng = random.Random(7)
+    token = alice.post("/api/platform/tokens", json={}).json()["token"]
+    h = {"Authorization": f"Bearer {token}"}
+    anon = TestClient(api.app)
+
+    def send(events):
+        body = "\n".join(json.dumps(e) for e in events)
+        r = anon.post("/api/ingest?auto=false", content=body, headers=h)
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    for i in range(0, 4):                      # history in a few batches, like a shipper would
+        part = gen.history(48, rng, now)
+        send(part[i::4])
+    assert alice.post("/api/platform/train").status_code == 200
+    kinds = ["brute", "exfil", "beacon", "scan"]
+    for k in kinds:
+        send(gen.attack(k, rng, now))
+    run = alice.post(f"/api/platform/run?since={now - 3 * 3600}").json()
+    while run.get("remaining"):
+        run = alice.post(f"/api/platform/run?since={now - 3 * 3600}").json()
+    incidents = alice.get("/api/platform/incidents").json()["incidents"]
+    sources = {i["src_ip"] for i in incidents if i["status"] in ("confirmed", "needs_review")}
+    assert {"203.0.113.77", "198.51.100.200"} <= sources, (sources, run)
+    stats = alice.get("/api/platform/stats").json()
+    assert stats["buckets"] and sum(stats["severity"].values()) >= 2
+    assert stats["top_sources"][0]["max_risk"] > 0
+
+
+def test_stats_are_per_account(app):
+    a, b = signup(app, "alice"), signup(app, "bobby")
+    a.post("/api/platform/demo")
+    assert sum(b.get("/api/platform/stats").json()["severity"].values()) == 0
+    assert any(x["events"] for x in a.get("/api/platform/stats").json()["buckets"])
+
+
+# ---- dashboard stats and the scenario kit ----------------------------------
+
+def test_stats_reflect_incidents_and_are_per_account(app):
+    a, b = signup(app, "alice"), signup(app, "bobby")
+    since = a.post("/api/platform/demo").json()["since"]
+    a.post(f"/api/platform/run?since={since}")
+    st = a.get("/api/platform/stats").json()
+    assert len(st["buckets"]) == 24 and sum(x["events"] for x in st["buckets"]) > 0
+    assert st["top_sources"] and st["mitre"] and st["severity"]
+    empty = b.get("/api/platform/stats").json()
+    assert empty["top_sources"] == [] and sum(x["events"] for x in empty["buckets"]) == 0
+    assert TestClient(app).get("/api/platform/stats").status_code == 401
+
+
+def test_scenario_lines_are_parsed_by_the_server():
+    import random
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tools"))
+    import scenario
+    import features
+    random.seed(1)
+    lines = scenario.normal(96, time.time())
+    assert len(lines) > 500
+    parsed = [features.parse_line(x, time.time()) for x in lines]
+    assert all(parsed) and {p["action"] for p in parsed} >= {"success", "failure"}
+    bad = features.parse_line(scenario.line(time.time(), "h", False, "root", scenario.ATTACKER, invalid=True), time.time())
+    assert bad["src_ip"] == scenario.ATTACKER and bad["action"] == "failure"

@@ -1,0 +1,25 @@
+{
+  "name": "log-anomaly-detector-desktop",
+  "version": "1.0.0",
+  "description": "Desktop app for the Log Anomaly Detector platform",
+  "main": "main.js",
+  "author": "dipapus-gif",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.example.log-anomaly-detector",
+    "productName": "Log Anomaly Detector",
+    "files": ["main.js", "preload.js", "connect.html"],
+    "win": { "target": "nsis" },
+    "mac": { "target": "dmg", "category": "public.app-category.developer-tools" },
+    "linux": { "target": ["AppImage", "deb"], "category": "Security" }
+  }
+}

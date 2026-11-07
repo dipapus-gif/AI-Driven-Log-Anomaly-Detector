@@ -86,6 +86,10 @@ def create_router(require_user):
     def overview(user=Depends(require_user)):
         return soc.overview(user.id)
 
+    @router.get("/api/platform/stats")
+    def stats(hours: int = 24, user=Depends(require_user)):
+        return store.dashboard_stats(user.id, hours=hours)
+
     @router.post("/api/platform/demo")
     def demo(reset: bool = False, user=Depends(require_user)):
         if store.count_events(user.id) and not reset:

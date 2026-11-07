@@ -125,7 +125,12 @@ Beyond the CSV analysis, the web app is an automated detect → investigate → 
 
 Safety rules: log content is treated as untrusted text (prompt-injection resistant: the model can only suggest, policy code executes, action targets must come from the incident's own indicators); the agent can't dismiss an alert unless a registered job fully matches or confidence is very high and risk is below the isolate threshold, and never if threat intel says malicious; webhooks are SSRF-guarded.
 
-Environment variables (set in Vercel project settings, never in the repo): `ANTHROPIC_API_KEY`, `AGENT_MODEL`, `AGENT_MAX_PER_HOUR`, `ABUSEIPDB_API_KEY`, `VIRUSTOTAL_API_KEY`, `RESPONSE_WEBHOOK_URL`, `RESPONSE_WEBHOOK_TOKEN`. Without intel keys a built-in demo feed covers the simulator's addresses. Click **Load demo environment** to try everything with simulated attacks.
+Environment variables (set in Vercel project settings, never in the repo): `ANTHROPIC_API_KEY`, `AGENT_MODEL`, `AGENT_MAX_PER_HOUR`, `ABUSEIPDB_API_KEY`, `VIRUSTOTAL_API_KEY`, `RESPONSE_WEBHOOK_URL`, `RESPONSE_WEBHOOK_TOKEN`. Without intel keys a built-in demo feed covers the simulator's addresses. Click **Load demo environment** (Settings) to try everything with simulated attacks.
+
+The interface has a public cover page and, after sign-in, a sidebar dashboard: Overview (KPIs, hourly alert and event charts, top sources, MITRE techniques), Incidents (investigation, trace, report), Approvals, Log sources (tokens, live event feed), CSV analysis and Settings.
+
+- **Try it on real logs:** see [docs/REAL_WORLD.md](docs/REAL_WORLD.md). `tools/scenario.py` generates realistic sshd history and a live brute-force attack for the tailer to ship.
+- **Desktop app:** `desktop/` is an Electron wrapper around the deployed site (see [desktop/README.md](desktop/README.md)).
 
 ## Dashboard
 
