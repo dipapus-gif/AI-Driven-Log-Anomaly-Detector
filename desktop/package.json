@@ -1,6 +1,6 @@
 {
   "name": "log-anomaly-detector-desktop",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Desktop app for the Log Anomaly Detector platform",
   "main": "main.js",
   "author": "dipapus-gif",
@@ -8,7 +8,9 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder"
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win --x64",
+    "dist:mac": "electron-builder --mac --x64 --arm64"
   },
   "devDependencies": {
     "electron": "^33.0.0",
@@ -17,9 +19,68 @@
   "build": {
     "appId": "com.example.log-anomaly-detector",
     "productName": "Log Anomaly Detector",
-    "files": ["main.js", "preload.js", "connect.html"],
-    "win": { "target": "nsis" },
-    "mac": { "target": "dmg", "category": "public.app-category.developer-tools" },
-    "linux": { "target": ["AppImage", "deb"], "category": "Security" }
+    "copyright": "Copyright \u00a9 dipapus-gif",
+    "directories": {
+      "buildResources": "build",
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "connect.html",
+      "build/icon.png"
+    ],
+    "artifactName": "Log-Anomaly-Detector-${version}-${os}-${arch}.${ext}",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.developer-tools",
+      "icon": "build/icon.png",
+      "identity": null
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Security",
+      "icon": "build/icon.png"
+    },
+    "publish": null
   }
 }

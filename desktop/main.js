@@ -36,7 +36,7 @@ function load() {
 function createWindow() {
   win = new BrowserWindow({
     width: 1360, height: 880, minWidth: 900, minHeight: 600, title: "Log Anomaly Detector",
-    backgroundColor: "#0d1a2b",
+    backgroundColor: "#130f2e",
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
   // Stay on the configured server (or the local connect page); everything else opens in the browser.
