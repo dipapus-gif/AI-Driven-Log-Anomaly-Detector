@@ -3,14 +3,18 @@
   "version": "1.1.0",
   "description": "Desktop app for the Log Anomaly Detector platform",
   "main": "main.js",
-  "author": "dipapus-gif",
+  "author": {
+    "name": "dipapus-gif",
+    "email": "dipapus-gif@users.noreply.github.com"
+  },
   "license": "MIT",
   "private": true,
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder",
     "dist:win": "electron-builder --win --x64",
-    "dist:mac": "electron-builder --mac --x64 --arm64"
+    "dist:mac": "electron-builder --mac --x64 --arm64",
+    "dist:linux": "electron-builder --linux --x64"
   },
   "devDependencies": {
     "electron": "^33.0.0",
@@ -75,12 +79,15 @@
     },
     "linux": {
       "target": [
-        "AppImage",
-        "deb"
+        "deb",
+        "AppImage"
       ],
       "category": "Security",
-      "icon": "build/icon.png"
+      "icon": "build/icon.png",
+      "maintainer": "dipapus-gif <dipapus-gif@users.noreply.github.com>",
+      "synopsis": "Log Anomaly Detector desktop app"
     },
     "publish": null
-  }
+  },
+  "homepage": "https://github.com/dipapus-gif/AI-Driven-Log-Anomaly-Detector"
 }
