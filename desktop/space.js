@@ -37,7 +37,7 @@
       nebula = document.createElement("canvas");
       nebula.width = w; nebula.height = h;
       var n = nebula.getContext("2d");
-      var k = hero ? 1 : 0.62;
+      var k = hero ? 1 : 0.9;
       var blobs = [
         { x: 0.14, y: 0.26, r: 0.55, c: "124,58,237", a: 0.36 },
         { x: 0.86, y: 0.16, r: 0.50, c: "217,70,239", a: 0.22 },
@@ -60,7 +60,7 @@
     }
 
     function buildStars() {
-      var count = clamp(Math.round((W * H) / (hero ? 2800 : 4200)), 90, 420);
+      var count = clamp(Math.round((W * H) / (hero ? 2800 : 3000)), 90, 420);
       stars = [];
       for (var i = 0; i < count; i++) {
         var z = Math.pow(Math.random(), 1.6); // most stars are far away and small
@@ -239,7 +239,7 @@
       for (var i = 0; i < stars.length; i++) {
         var s = stars[i];
         var tw = 0.65 + 0.35 * Math.sin(time * s.rate + s.phase);
-        var a = s.base * tw * (hero ? 1 : 0.8);
+        var a = Math.min(1, s.base * tw * (hero ? 1 : 1.25));
         var x = s.x * W, y = s.y * H;
         ctx.fillStyle = "rgba(" + s.color + "," + a.toFixed(2) + ")";
         ctx.beginPath(); ctx.arc(x, y, s.size * 0.62, 0, TAU); ctx.fill();
