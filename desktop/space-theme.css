@@ -1,0 +1,44 @@
+/* Space theme for the dashboard. The desktop app injects this on top of the website's own
+   styles (it overrides the site's color variables) and adds a starfield canvas behind the page. */
+
+:root:root:root {
+  --ink: #f1edff;
+  --muted: #a8a2c8;
+  --panel: rgba(17, 11, 38, 0.74);
+  --panel-2: rgba(11, 7, 26, 0.92);
+  --line: rgba(167, 139, 250, 0.24);
+  --accent: #b9a2ff;
+  --accent-1: #7c3aed;
+  --accent-2: #db2777;
+  --accent-soft: rgba(124, 58, 237, 0.22);
+  --side: rgba(5, 3, 14, 0.86);
+  --side-ink: #c9c2ee;
+  --side-active: rgba(124, 58, 237, 0.26);
+  --side-line: rgba(167, 139, 250, 0.16);
+  --bar: #8b5cf6;
+  --bar-hot: #f472b6;
+}
+
+html { background: #05030d; }
+body { background: transparent !important; }
+
+#space-bg {
+  position: fixed; inset: 0; width: 100vw; height: 100vh;
+  z-index: -1; pointer-events: none; display: block;
+}
+
+/* Frosted glass so the stars show through the panels without hurting readability. */
+.card, .kpi, .stat, .top {
+  -webkit-backdrop-filter: blur(10px) saturate(1.25);
+  backdrop-filter: blur(10px) saturate(1.25);
+}
+.card, .kpi, .stat { box-shadow: 0 8px 32px rgba(76, 29, 149, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.04); }
+button.primary { box-shadow: 0 6px 22px rgba(168, 85, 247, 0.3); }
+
+/* The look is always dark, so the light/dark switch has nothing to do. */
+.theme-btn { display: none !important; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: rgba(167, 139, 250, 0.3); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(167, 139, 250, 0.5); }
+::-webkit-scrollbar-track { background: transparent; }
